@@ -124,8 +124,8 @@ struct Message final
     u32 mExpiresAtFrame = 0;
 };
 std::vector<Message> sMessages;
-constexpr u32 kMessageFrames = 150; // about five seconds
-constexpr size_t kMaxMessages = 4;  // older lines are dropped
+constexpr u32 kMessageFrames = 240; // about eight seconds
+constexpr size_t kMaxMessages = 6;  // older lines are dropped
 constexpr size_t kMaxMessageLength = 70;
 
 void AddMessage(std::string text)
@@ -149,8 +149,13 @@ void AddMessage(std::string text)
     }
 }
 
+// The goal, always on screen while the client has told the game what it is: how many Mudokons you have and how many are needed.
+// (Defined below with the goal settings, which it reads.)
+void DrawGoalLine();
+
 void DrawMessages()
 {
+    DrawGoalLine();
     sMessages.erase(std::remove_if(sMessages.begin(), sMessages.end(), [](const Message& m) { return sGnFrame_5C1B84 > m.mExpiresAtFrame; }), sMessages.end());
     for (const Message& m : sMessages)
     {
@@ -564,6 +569,22 @@ void StepTeleport()
         sDDCheat_FlyingEnabled_5C2C08 = false; // the camera never arrived: give up rather than leave Abe flying
         sTeleport.mActive = false;
         AddMessage("Teleport failed");
+    }
+}
+
+void DrawGoalLine()
+{
+    if (!InGameplay())
+    {
+        return;
+    }
+    if (sGoalItems > 0)
+    {
+        DebugFont_Printf_4F8B60(0, "Mudokon Saved items: %d / %d\n", sSavedMudokons, sGoalItems);
+    }
+    else if (sGoodEnding > 0)
+    {
+        DebugFont_Printf_4F8B60(0, "Mudokons rescued: %d / %d\n", sRescuedMudokons_5C1BC2, sGoodEnding);
     }
 }
 
