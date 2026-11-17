@@ -12,6 +12,9 @@
 #include "DDCheat.hpp"
 #include "BaseAliveGameObject.hpp"
 #include "Grid.hpp"
+#include "Archipelago.hpp"
+#include "Map.hpp"
+#include "Input.hpp"
 
 struct Door_Info final
 {
@@ -413,6 +416,18 @@ void Door::vUpdate_41EBE0()
             {
                 if (!SwitchStates_Get_466020(field_100_switch_id) && field_F8_door_type == DoorTypes::eTasksDoorWithSecretMusic_2)
                 {
+#if ARCHIPELAGO_CLIENT
+                    {
+                        Archipelago::SecretCueEvent cue = {};
+                        cue.mLevel = gMap_5C3030.field_0_current_level;
+                        cue.mPath = gMap_5C3030.field_2_current_path;
+                        cue.mCamera = gMap_5C3030.field_4_current_camera;
+                        cue.mFromDoor = true;
+                        cue.mX = FP_GetExponent(field_B8_xpos);
+                        cue.mY = FP_GetExponent(field_BC_ypos);
+                        Archipelago::OnSecretCue(cue);
+                    }
+#endif
                     SND_SEQ_Play_4CAB10(SeqId::SecretMusic_32, 1, 127, 127);
                     auto pMusicTrigger = ae_new<MusicTrigger>();
                     if (pMusicTrigger)
@@ -427,13 +442,34 @@ void Door::vUpdate_41EBE0()
                 SwitchStates_Do_Operation_465F00(field_100_switch_id, SwitchOp::eSetFalse_1);
             }
         }
+#if ARCHIPELAGO_CLIENT
+        // A door whose destination is locked behaves as a closed door until the client unlocks it.
+        bool apLocked = false;
+        if (Path_TLV* pTlv = sPath_dword_BB47C0->TLV_From_Offset_Lvl_Cam_4DB770(field_F4_tlvInfo))
+        {
+            const Path_Door* pDoorTlv = static_cast<const Path_Door*>(pTlv);
+            apLocked = Archipelago::IsDestinationLocked(pDoorTlv->field_10_level, pDoorTlv->field_12_path);
+            if (apLocked && sActiveHero_5C1B68
+                && FP_Abs(sActiveHero_5C1B68->field_B8_xpos - field_B8_xpos) < FP_FromInteger(15)
+                && FP_Abs(sActiveHero_5C1B68->field_BC_ypos - field_BC_ypos) < FP_FromInteger(20)
+                && (sInputObject_5BD4E0.field_0_pads[sCurrentControllerIndex_5C1BBE].field_C_held & InputCommands::Enum::eUp))
+            {
+                Archipelago::OnLockedDoorTried(pDoorTlv->field_10_level, pDoorTlv->field_12_path);
+            }
+        }
+#endif
+
         switch (field_FC_current_state)
         {
             case DoorStates::eOpen_0:
                 field_20_animation.field_4_flags.Clear(AnimFlags::eBit3_Render);
 
                 if ((!field_FE_start_state && SwitchStates_Get_466020(field_100_switch_id))
-                    || (field_FE_start_state == DoorStates::eClosed_1 && !SwitchStates_Get_466020(field_100_switch_id)))
+                    || (field_FE_start_state == DoorStates::eClosed_1 && !SwitchStates_Get_466020(field_100_switch_id))
+#if ARCHIPELAGO_CLIENT
+                    || apLocked
+#endif
+                )
                 {
                     field_FC_current_state = DoorStates::eClosing_3;
                     if (gMap_5C3030.field_22_overlayID == 108)
@@ -456,7 +492,11 @@ void Door::vUpdate_41EBE0()
                 field_20_animation.field_4_flags.Set(AnimFlags::eBit3_Render);
                 field_20_animation.field_4_flags.Set(AnimFlags::eBit2_Animate);
 
-                if ((field_FE_start_state == DoorStates::eClosed_1 && SwitchStates_Get_466020(field_100_switch_id)) || (field_FE_start_state == DoorStates::eOpen_0 && !SwitchStates_Get_466020(field_100_switch_id)))
+                if (((field_FE_start_state == DoorStates::eClosed_1 && SwitchStates_Get_466020(field_100_switch_id)) || (field_FE_start_state == DoorStates::eOpen_0 && !SwitchStates_Get_466020(field_100_switch_id)))
+#if ARCHIPELAGO_CLIENT
+                    && !apLocked
+#endif
+                )
                 {
                     field_FC_current_state = DoorStates::eOpening_2;
                     if (gMap_5C3030.field_22_overlayID == 108)

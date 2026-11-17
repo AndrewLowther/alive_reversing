@@ -5,6 +5,7 @@ option(DEVELOPER_MODE "Boot direct to main selection screen, enable debug.sav lo
 option(BEHAVIOUR_CHANGE_FORCE_WINDOW_MODE "Force game to run in windowed mode" ON)
 option(BEHAVIOUR_CHANGE_SUB_DATA_FOLDERS "Allow the game to load ddv and lvl files from their own folders. (movies, levels)" ON)
 option(FORCE_DDCHEAT "Force ddcheat mode to be enabled" ON)
+option(ARCHIPELAGO_CLIENT "Enable the Archipelago multiworld hooks (Exoddus only)" OFF)
 option(LCD_PS1_SPEED "Corrects LCD Screens to move as fast as the original PS1 version of the game." OFF)
 option(XINPUT_SUPPORT "Adds XINPUT support to the game and replaces in game fonts with Xbox Versions." OFF)
 option(USE_SDL3 "Use SDL3 instead of Win32 APIs." ON)

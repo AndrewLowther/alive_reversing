@@ -1,0 +1,69 @@
+#pragma once
+
+#include "../AliveLibCommon/FunctionFwd.hpp"
+#include "../AliveLibCommon/relive_config.h"
+
+// Archipelago multiworld client hooks (Exoddus only).
+//
+// Phase 1 is observe-only: the engine reports rescues and level changes, and they are appended to
+// archipelago_events.jsonl in the working directory. Nothing here changes game behaviour.
+// Everything is compiled out unless the ARCHIPELAGO_CLIENT CMake option is ON.
+
+#if ARCHIPELAGO_CLIENT
+
+enum class LevelIds : s16;
+
+namespace Archipelago {
+
+struct RescueEvent final
+{
+    LevelIds mLevel;          // level the Mudokon was rescued in
+    s16 mPath;                // path within that level
+    s16 mZulag;               // zulag the status board currently reports (global, set by the last board seen)
+    u32 mTlvInfo;             // the Mudokon's TlvItemInfoUnion (tlv offset, level id, path id): a stable identity
+    s16 mTlvX;                // the Mudokon's original position in the level data (matches xpos/ypos in the path dumps)
+    s16 mTlvY;                // -1 if the level data entry could not be found
+    s16 mTotalRescued;        // the game's running rescued count
+    s16 mZulagSavedKilled;    // the game's per-zulag saved+killed counter (kills share it); -1 if out of range
+};
+
+// The game plays its "secret area" cue: either Abe touched a secret-area music trigger, or a door that
+// plays the secret music opened. Used to tell secret-area Mudokons from main-path ones.
+struct SecretCueEvent final
+{
+    LevelIds mLevel;
+    s16 mPath;
+    s16 mCamera;
+    bool mFromDoor;           // false: touch trigger, true: door
+    s16 mX;                   // the trigger's top-left (touch trigger) or the door's position
+    s16 mY;
+    s16 mWidth;               // 0 for doors
+    s16 mHeight;
+};
+
+void OnMudokonRescued(const RescueEvent& event);
+
+void OnSecretCue(const SecretCueEvent& event);
+
+void OnLevelChanged(LevelIds from, s16 fromPath, LevelIds to, s16 toPath, s16 camera);
+
+// Physical blocking. A door whose destination is locked behaves as a closed door until the client unlocks it.
+//
+// Lock state comes from archipelago_unlocks.txt in the working directory (re-read about once a second, so it
+// can be edited while playing). One directive per line:
+//   enforce          turn blocking on (without it nothing is ever blocked)
+//   area_access      also block individual areas (zulags), not just levels
+//   level <id>       the level with this game LevelId is unlocked
+//   zulag <l> <z>    area <z> of level <l> is unlocked
+// Levels 1 (Necrum Mines) is always open. If the file is missing nothing is blocked.
+//
+// This is only the first, door-based part: path transitions, level loaders, teleporters and portals are not
+// blocked yet. Checks are held back by the client regardless, so logic stays sound.
+bool IsDestinationLocked(LevelIds level, s16 path);
+
+// Abe tried a locked door: logs it and plays the game's "access denied" buzzer (rate limited).
+void OnLockedDoorTried(LevelIds level, s16 path);
+
+} // namespace Archipelago
+
+#endif

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "Map.hpp"
+#include "Archipelago.hpp"
 #include "PathData.hpp"
 #include "Function.hpp"
 #include "ScreenManager.hpp"
@@ -784,6 +785,10 @@ void Map::GoTo_Camera_481890()
     field_2_current_path = field_C_path;
     field_0_current_level = field_A_level;
     field_4_current_camera = field_E_camera;
+
+#if ARCHIPELAGO_CLIENT
+    Archipelago::OnLevelChanged(prevLevelId, prevPathId, field_0_current_level, field_2_current_path, field_4_current_camera);
+#endif
 
     const PathBlyRec* pPathRec_1 = Path_Get_Bly_Record_460F30(field_A_level, field_C_path);
     field_D4_ptr = pPathRec_1->field_4_pPathData;
