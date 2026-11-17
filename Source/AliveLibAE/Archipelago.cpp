@@ -38,11 +38,24 @@ void OnMudokonRescued(const RescueEvent& event)
     std::snprintf(
         buffer, sizeof(buffer),
         "{\"t\":%lld,\"event\":\"rescue\",\"level\":%d,\"path\":%d,\"zulag\":%d,"
-        "\"tlv\":{\"offset\":%u,\"level\":%u,\"path\":%u},\"total_rescued\":%d,\"zulag_saved_killed\":%d}",
+        "\"tlv\":{\"offset\":%u,\"level\":%u,\"path\":%u,\"x\":%d,\"y\":%d},\"total_rescued\":%d,\"zulag_saved_killed\":%d}",
         static_cast<long long>(NowMs()),
         static_cast<s32>(event.mLevel), event.mPath, event.mZulag,
         static_cast<u32>(tlv.parts.tlvOffset), static_cast<u32>(tlv.parts.levelId), static_cast<u32>(tlv.parts.pathId),
-        event.mTotalRescued, event.mZulagSavedKilled);
+        event.mTlvX, event.mTlvY, event.mTotalRescued, event.mZulagSavedKilled);
+    AppendLine(buffer);
+}
+
+void OnSecretCue(const SecretCueEvent& event)
+{
+    char_type buffer[320] = {};
+    std::snprintf(
+        buffer, sizeof(buffer),
+        "{\"t\":%lld,\"event\":\"secret_cue\",\"kind\":\"%s\",\"level\":%d,\"path\":%d,\"camera\":%d,"
+        "\"x\":%d,\"y\":%d,\"w\":%d,\"h\":%d}",
+        static_cast<long long>(NowMs()),
+        event.mFromDoor ? "door" : "touch",
+        static_cast<s32>(event.mLevel), event.mPath, event.mCamera, event.mX, event.mY, event.mWidth, event.mHeight);
     AppendLine(buffer);
 }
 

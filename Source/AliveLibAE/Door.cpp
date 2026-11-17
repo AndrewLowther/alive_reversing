@@ -12,6 +12,8 @@
 #include "DDCheat.hpp"
 #include "BaseAliveGameObject.hpp"
 #include "Grid.hpp"
+#include "Archipelago.hpp"
+#include "Map.hpp"
 
 struct Door_Info final
 {
@@ -413,6 +415,18 @@ void Door::vUpdate_41EBE0()
             {
                 if (!SwitchStates_Get_466020(field_100_switch_id) && field_F8_door_type == DoorTypes::eTasksDoorWithSecretMusic_2)
                 {
+#if ARCHIPELAGO_CLIENT
+                    {
+                        Archipelago::SecretCueEvent cue = {};
+                        cue.mLevel = gMap_5C3030.field_0_current_level;
+                        cue.mPath = gMap_5C3030.field_2_current_path;
+                        cue.mCamera = gMap_5C3030.field_4_current_camera;
+                        cue.mFromDoor = true;
+                        cue.mX = FP_GetExponent(field_B8_xpos);
+                        cue.mY = FP_GetExponent(field_BC_ypos);
+                        Archipelago::OnSecretCue(cue);
+                    }
+#endif
                     SND_SEQ_Play_4CAB10(SeqId::SecretMusic_32, 1, 127, 127);
                     auto pMusicTrigger = ae_new<MusicTrigger>();
                     if (pMusicTrigger)

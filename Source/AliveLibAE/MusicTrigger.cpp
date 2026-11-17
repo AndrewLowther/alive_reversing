@@ -7,6 +7,7 @@
 #include "Events.hpp"
 #include "Abe.hpp"
 #include "Game.hpp"
+#include "Archipelago.hpp"
 
 EXPORT BaseGameObject* MusicTrigger::ctor_47FE40(Path_MusicTrigger* pTlv, u32 tlvInfo)
 {
@@ -127,6 +128,21 @@ EXPORT void MusicTrigger::vUpdate_480140()
         if (xpos >= FP_FromInteger(field_2C_tl.field_0_x) && xpos <= FP_FromInteger(field_30_br.field_0_x) && (ypos >= FP_FromInteger(field_2C_tl.field_2_y) && ypos <= FP_FromInteger(field_30_br.field_2_y)))
         {
             field_24_flags.Clear(Flags_24::e24_Bit1_TriggeredByTouching);
+#if ARCHIPELAGO_CLIENT
+            if (field_26_music_type == MusicController::MusicTypes::eSecretAreaLong_13 || field_26_music_type == MusicController::MusicTypes::eSecretAreaShort_12)
+            {
+                Archipelago::SecretCueEvent cue = {};
+                cue.mLevel = gMap_5C3030.field_0_current_level;
+                cue.mPath = gMap_5C3030.field_2_current_path;
+                cue.mCamera = gMap_5C3030.field_4_current_camera;
+                cue.mFromDoor = false;
+                cue.mX = field_2C_tl.field_0_x;
+                cue.mY = field_2C_tl.field_2_y;
+                cue.mWidth = static_cast<s16>(field_30_br.field_0_x - field_2C_tl.field_0_x);
+                cue.mHeight = static_cast<s16>(field_30_br.field_2_y - field_2C_tl.field_2_y);
+                Archipelago::OnSecretCue(cue);
+            }
+#endif
             MusicController::PlayMusic_47FD60(field_26_music_type, this, field_24_flags.Get(Flags_24::e24_Bit3_SetMusicToNoneOnDtor), 1);
             field_24_flags.Set(Flags_24::e24_Bit2_TriggeredByTimer);
             if (field_28_counter >= 0)

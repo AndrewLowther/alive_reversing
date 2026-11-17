@@ -6481,6 +6481,13 @@ void Mudokon::M_RunJumpMid_36_474570()
             rescue.mPath = gMap_5C3030.field_2_current_path;
             rescue.mZulag = sZulagNumber_5C1A20;
             rescue.mTlvInfo = static_cast<u32>(field_118_tlvInfo);
+            rescue.mTlvX = -1;
+            rescue.mTlvY = -1;
+            if (Path_TLV* pTlv = sPath_dword_BB47C0->TLV_From_Offset_Lvl_Cam_4DB770(static_cast<u32>(field_118_tlvInfo)))
+            {
+                rescue.mTlvX = pTlv->field_8_top_left.field_0_x;
+                rescue.mTlvY = pTlv->field_8_top_left.field_2_y;
+            }
             rescue.mTotalRescued = sRescuedMudokons_5C1BC2;
             rescue.mZulagSavedKilled = sZulagNumber_5C1A20 < ALIVE_COUNTOF(sSavedKilledMudsPerZulag_5C1B50.mData) ? sSavedKilledMudsPerZulag_5C1B50.mData[sZulagNumber_5C1A20] : static_cast<s16>(-1);
             Archipelago::OnMudokonRescued(rescue);
