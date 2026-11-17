@@ -350,6 +350,8 @@ std::streamoff sCommandOffset = 0;
 s32 sLastAck = 0;
 bool sCommandsStarted = false;
 s32 sGoodEnding = 0;
+s32 sGoalItems = 0;       // with Mudokon Saved items: how many the good ending needs (0 = count rescues as usual)
+s32 sSavedMudokons = 0;   // Mudokon Saved items received so far
 bool sAbeWasDead = false;
 u32 sFramesSincePoll = 0;
 
@@ -526,6 +528,16 @@ bool Execute(const Command& cmd)
         sGoodEnding = cmd.mValue; // needs no Abe
         return true;
     }
+    if (cmd.mName == "set_goal_items")
+    {
+        sGoalItems = cmd.mValue;
+        return true;
+    }
+    if (cmd.mName == "set_saved_mudokons")
+    {
+        sSavedMudokons = cmd.mValue;
+        return true;
+    }
     if (!InGameplay())
     {
         return false; // try again once Abe is in a level
@@ -583,6 +595,22 @@ bool Execute(const Command& cmd)
 s32 GoodEndingOverride()
 {
     return sGoodEnding;
+}
+
+bool GoodEndingAllowed(bool enoughRescues)
+{
+    if (sGoalItems <= 0)
+    {
+        return enoughRescues; // rescues are what count
+    }
+    if (sSavedMudokons >= sGoalItems)
+    {
+        return true;
+    }
+    char_type text[80] = {};
+    std::snprintf(text, sizeof(text), "Need %d Mudokon Saved items, have %d", sGoalItems, sSavedMudokons);
+    AddMessage(text);
+    return false;
 }
 
 void OnEnding(EndingKind kind)

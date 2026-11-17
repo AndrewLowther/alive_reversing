@@ -59,6 +59,9 @@ void OnLevelChanged(LevelIds from, s16 fromPath, LevelIds to, s16 toPath, s16 ca
 //                                                  seconds (ASCII only, no quotes; ephemeral like kill)
 //   {"cfg":1,"cmd":"set_good_ending","value":120}  a standing setting: the good ending needs this many rescues.
 //                                                  Applied every time the game starts; the last one in the file wins.
+//   {"cfg":1,"cmd":"set_goal_items","value":100}   a standing setting: the good ending needs this many Mudokon Saved items
+//                                                  (not rescues). Without it rescues count, as before.
+//   {"cfg":1,"cmd":"set_saved_mudokons","value":12}  a standing setting: Mudokon Saved items received so far
 //   {"seq":0,"t":1731850000000,"cmd":"kill"}       kill Abe (Death Link); ephemeral, ignored if older than 15 s
 // A command with seq > 0 is carried out once: the highest seq done is stored in archipelago_ack.txt, so the client
 // can safely resend everything after a restart. Commands that cannot run yet (no Abe, menu, credits) wait.
@@ -79,6 +82,10 @@ void Tick();
 
 // The number of rescues the good ending needs, or 0 to use the game's own value.
 s32 GoodEndingOverride();
+
+// The good ending's own check, `enoughRescues`, may be replaced: with Mudokon Saved items the ending needs that many items
+// instead, and when it does not have them a message in the corner says so.
+bool GoodEndingAllowed(bool enoughRescues);
 
 // Physical blocking. A door whose destination is locked behaves as a closed door, and Abe will not enter a well that leads
 // somewhere locked, until the client unlocks it.

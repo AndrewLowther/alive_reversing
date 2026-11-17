@@ -156,7 +156,11 @@ void GameEnderController::vUpdate_43B920()
                     sActiveHero_5C1B68->field_6_flags.Set(BaseGameObject::eDead_Bit3);
 
                     // Good ending
-                    if (sRescuedMudokons_5C1BC2 >= Path_GoodEndingMuds(gMap_5C3030.field_0_current_level, gMap_5C3030.field_2_current_path))
+                    bool goodEnding = sRescuedMudokons_5C1BC2 >= Path_GoodEndingMuds(gMap_5C3030.field_0_current_level, gMap_5C3030.field_2_current_path);
+#if ARCHIPELAGO_CLIENT
+                    goodEnding = Archipelago::GoodEndingAllowed(goodEnding);
+#endif
+                    if (goodEnding)
                     {
                         gAbeBulletProof_5C1BDA = 0;
                         sFeeco_Restart_KilledMudCount_5C1BC6 = 0;
