@@ -53,6 +53,7 @@ void OnLevelChanged(LevelIds from, s16 fromPath, LevelIds to, s16 toPath, s16 ca
 // The client appends one JSON object per line to archipelago_commands.jsonl:
 //   {"seq":12,"cmd":"give_throwables","count":5}   add throwables of the level's own kind
 //   {"seq":13,"cmd":"alarm"}                       sound the alarm (a trap)
+//   {"seq":14,"cmd":"fart"}                        make Abe fart (a trap): sound, noise Sligs hear, smoke
 //   {"seq":0,"t":<ms>,"cmd":"teleport","level":2,"path":5,"camera":9}  TESTING ONLY: jump to a camera, like the debug
 //                                                  teleport menu does (game LevelId, path, camera)
 //   {"seq":0,"t":<ms>,"cmd":"message","text":"Got 5 Throwables"}  show a line of text in the corner of the screen for a few

@@ -10,11 +10,14 @@
 #include "Alarm.hpp"
 #include "BaseBomb.hpp"
 #include "DDCheat.hpp"
+#include "Events.hpp"
 #include "Factory.hpp"
 #include "Game.hpp"
+#include "GameSpeak.hpp"
 #include "Layer.hpp"
 #include "PsxDisplay.hpp"
 #include "Map.hpp"
+#include "Particle.hpp"
 #include "PathData.hpp"
 #include "Sfx.hpp"
 #include "ThrowableArray.hpp"
@@ -472,6 +475,33 @@ void GiveThrowables(s32 count)
     }
 }
 
+// The Fart Trap: Abe lets one go. The same sound, game speak event, noise for Sligs to hear and puff of smoke as the
+// player's own fart (Abe::Motion_0_Idle), without needing a button press. Only a standing Abe also does the fart animation,
+// because forcing that motion on a running or jumping Abe would break his state.
+void Fart()
+{
+    Abe* pAbe = sActiveHero_5C1B68;
+    Mudokon_SFX_457EC0(MudSounds::eFart_7, 0, 0, pAbe);
+    pEventSystem_5BC11C->PushEvent_4218D0(GameSpeakEvents::eFart_3);
+    Event_Broadcast_422BC0(kEventNoise, pAbe);
+    Event_Broadcast_422BC0(kEventSuspiciousNoise, pAbe);
+
+    const FP scale = FP_FromDouble(0.5) * pAbe->field_CC_sprite_scale;
+    const FP y = pAbe->field_BC_ypos - (FP_FromInteger(24) * pAbe->field_CC_sprite_scale);
+    const FP offset = FP_FromInteger(12) * pAbe->field_CC_sprite_scale;
+    const FP x = pAbe->field_20_animation.field_4_flags.Get(AnimFlags::eBit5_FlipX) ? pAbe->field_B8_xpos + offset : pAbe->field_B8_xpos - offset;
+    New_Smoke_Particles_426C70(x, y, scale, 3, 32u, 128u, 32u);
+
+    const bool idle = pAbe->field_106_current_motion == eAbeMotions::Motion_0_Idle_44EEB0;
+    if (idle)
+    {
+        pAbe->field_106_current_motion = eAbeMotions::Motion_10_Fart_45B1A0;
+    }
+    char_type buffer[96] = {};
+    std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"fart\",\"idle\":%s}", static_cast<long long>(NowMs()), idle ? "true" : "false");
+    AppendLine(buffer);
+}
+
 // TESTING ONLY. Copies what the game's debug teleport menu does: point the map at a camera, then on a later frame, once it
 // has loaded, put Abe in it. Lets a locked well or door far into the game be tried in seconds.
 struct Teleport final
@@ -561,6 +591,13 @@ bool Execute(const Command& cmd)
         char_type buffer[160] = {};
         std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"alarm\",\"instances_before\":%d,\"died_at_once\":%s}", static_cast<long long>(NowMs()), instancesBefore, diedAtOnce ? "true" : "false");
         AppendLine(buffer);
+    }
+    else if (cmd.mName == "fart")
+    {
+        if (!AbeIsDead())
+        {
+            Fart();
+        }
     }
     else if (cmd.mName == "teleport")
     {
