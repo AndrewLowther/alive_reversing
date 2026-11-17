@@ -286,6 +286,8 @@ SET(AliveLibAESrc
     FlyingSlig.hpp
     FlyingSligSpawner.cpp
     FlyingSligSpawner.hpp
+    Archipelago.cpp
+    Archipelago.hpp
     Mudokon.cpp
     Mudokon.hpp
     BirdPortal.cpp
