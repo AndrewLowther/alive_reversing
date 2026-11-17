@@ -53,6 +53,8 @@ void OnLevelChanged(LevelIds from, s16 fromPath, LevelIds to, s16 toPath, s16 ca
 // The client appends one JSON object per line to archipelago_commands.jsonl:
 //   {"seq":12,"cmd":"give_throwables","count":5}   add throwables of the level's own kind
 //   {"seq":13,"cmd":"alarm"}                       sound the alarm (a trap)
+//   {"seq":0,"t":<ms>,"cmd":"message","text":"Got 5 Throwables"}  show a line of text in the corner of the screen for a few
+//                                                  seconds (ASCII only, no quotes; ephemeral like kill)
 //   {"cfg":1,"cmd":"set_good_ending","value":120}  a standing setting: the good ending needs this many rescues.
 //                                                  Applied every time the game starts; the last one in the file wins.
 //   {"seq":0,"t":1731850000000,"cmd":"kill"}       kill Abe (Death Link); ephemeral, ignored if older than 15 s

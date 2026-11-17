@@ -12,6 +12,7 @@
 #include "Factory.hpp"
 #include "Game.hpp"
 #include "Layer.hpp"
+#include "PsxDisplay.hpp"
 #include "Map.hpp"
 #include "PathData.hpp"
 #include "Sfx.hpp"
@@ -111,6 +112,48 @@ void OnLevelChanged(LevelIds from, s16 fromPath, LevelIds to, s16 toPath, s16 ca
 // Physical blocking
 
 namespace {
+
+// Lines of text shown in the top-left corner of the screen, drawn with the engine's debug font.
+struct Message final
+{
+    std::string mText;
+    u32 mExpiresAtFrame = 0;
+};
+std::vector<Message> sMessages;
+constexpr u32 kMessageFrames = 150; // about five seconds
+constexpr size_t kMaxMessages = 4;  // older lines are dropped
+constexpr size_t kMaxMessageLength = 70;
+
+void AddMessage(std::string text)
+{
+    if (text.size() > kMaxMessageLength)
+    {
+        text.resize(kMaxMessageLength);
+    }
+    for (Message& m : sMessages)
+    {
+        if (m.mText == text) // already showing: just keep it up a little longer
+        {
+            m.mExpiresAtFrame = sGnFrame_5C1B84 + kMessageFrames;
+            return;
+        }
+    }
+    sMessages.push_back({std::move(text), sGnFrame_5C1B84 + kMessageFrames});
+    if (sMessages.size() > kMaxMessages)
+    {
+        sMessages.erase(sMessages.begin());
+    }
+}
+
+void DrawMessages()
+{
+    sMessages.erase(std::remove_if(sMessages.begin(), sMessages.end(), [](const Message& m) { return sGnFrame_5C1B84 > m.mExpiresAtFrame; }), sMessages.end());
+    for (const Message& m : sMessages)
+    {
+        // The debug font is flushed to the screen once per frame, so text added here appears this frame.
+        DebugFont_Printf_4F8B60(0, "%s\n", m.mText.c_str()); // index 0 is the one the cheat menu uses
+    }
+}
 
 struct AreaEntry final
 {
@@ -228,12 +271,38 @@ void Refresh()
 
 } // namespace
 
-bool IsDestinationLocked(LevelIds level, s16 path)
+namespace {
+
+const char_type* LevelName(s16 level)
+{
+    switch (BaseLevel(level))
+    {
+        case 1: return "Necrum Mines";
+        case 2: return "Necrum";
+        case 3: return "Mudomo Vault";
+        case 4: return "Mudanchee Vault";
+        case 5: return "FeeCo Depot";
+        case 6: return "Slig Barracks";
+        case 8: return "Bonewerkz";
+        case 9: return "SoulStorm Brewery";
+        default: return "this level";
+    }
+}
+
+enum class LockReason
+{
+    eNone,
+    eLevelPass, // the level's pass has not arrived
+    eAreaAccess, // none of the areas in the path has had its access item
+};
+
+// Why a door to this destination is locked, and for an area lock, the area (zulag) numbers the path holds.
+LockReason WhyLocked(LevelIds level, s16 path, std::vector<s16>* areas)
 {
     Refresh();
     if (!sUnlocks.mEnforce)
     {
-        return false;
+        return LockReason::eNone;
     }
 
     const s16 lvl = static_cast<s16>(level);
@@ -242,20 +311,20 @@ bool IsDestinationLocked(LevelIds level, s16 path)
     // Not a gameplay level (menu, credits, test level): never blocked.
     if (base < kStartLevel || base > 14 || base == 15)
     {
-        return false;
+        return LockReason::eNone;
     }
 
     // Level pass: needed to go into a different level than the one we are in.
     const s16 currentBase = BaseLevel(static_cast<s16>(gMap_5C3030.field_0_current_level));
     if (base != kStartLevel && base != currentBase && sUnlocks.mLevels.count(base) == 0)
     {
-        return true;
+        return LockReason::eLevelPass;
     }
 
     // Area access: Necrum Mines is open as a whole, Ender levels follow their level's pass.
     if (!sUnlocks.mAreaAccess || base == kStartLevel || lvl != base)
     {
-        return false;
+        return LockReason::eNone;
     }
     for (const AreaEntry& area : kAreas)
     {
@@ -265,13 +334,24 @@ bool IsDestinationLocked(LevelIds level, s16 path)
             {
                 if (sUnlocks.mZulags.count({base, area.mZulags[i]}) != 0)
                 {
-                    return false;
+                    return LockReason::eNone;
                 }
             }
-            return true; // the path has areas and none of them is unlocked
+            if (areas)
+            {
+                areas->assign(area.mZulags, area.mZulags + area.mZulagCount);
+            }
+            return LockReason::eAreaAccess; // the path has areas and none of them is unlocked
         }
     }
-    return false; // a path with no status board (a hub or corridor) is never blocked
+    return LockReason::eNone; // a path with no status board (a hub or corridor) is never blocked
+}
+
+} // namespace
+
+bool IsDestinationLocked(LevelIds level, s16 path)
+{
+    return WhyLocked(level, path, nullptr) != LockReason::eNone;
 }
 
 void OnLockedDoorTried(LevelIds level, s16 path)
@@ -284,6 +364,23 @@ void OnLockedDoorTried(LevelIds level, s16 path)
     sLastFrame = sGnFrame_5C1B84;
 
     SFX_Play_46FBA0(SoundEffect::SecurityDoorDeny_38, 90, 0);
+
+    std::vector<s16> areas;
+    const LockReason reason = WhyLocked(level, path, &areas);
+    std::string text = "Locked";
+    if (reason == LockReason::eLevelPass)
+    {
+        text = std::string("Locked: needs the ") + LevelName(static_cast<s16>(level)) + " Pass";
+    }
+    else if (reason == LockReason::eAreaAccess && !areas.empty())
+    {
+        text = std::string("Locked: needs ") + LevelName(static_cast<s16>(level)) + " Zulag " + std::to_string(areas[0]) + " Access";
+        if (areas.size() > 1)
+        {
+            text += " (or one of " + std::to_string(areas.size() - 1) + " more)";
+        }
+    }
+    AddMessage(text);
 
     char_type buffer[192] = {};
     std::snprintf(
@@ -308,6 +405,7 @@ struct Command final
     std::string mName;
     s32 mCount = 0;
     s32 mValue = 0;
+    std::string mText;
 };
 
 std::vector<Command> sPending;
@@ -330,6 +428,10 @@ void StartCommands()
     {
         sLastAck = ack;
     }
+    // Numbered commands at or below this are skipped as already done, which is easy to forget when testing by hand.
+    char_type buffer[96] = {};
+    std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"commands_start\",\"ack\":%d}", static_cast<long long>(NowMs()), sLastAck);
+    AppendLine(buffer);
 }
 
 void SaveAck()
@@ -376,11 +478,24 @@ void ReadNewCommands()
         cmd.mTime = Json::Int(object, "t", 0);
         cmd.mCount = static_cast<s32>(Json::Int(object, "count", 0));
         cmd.mValue = static_cast<s32>(Json::Int(object, "value", 0));
+        cmd.mText = Json::String(object, "text");
         // A "cfg" line is a standing setting: always applied, and the last one in the file wins.
         const bool isConfig = Json::Int(object, "cfg", 0) != 0;
-        if (!isConfig && (cmd.mSeq > 0 ? cmd.mSeq <= sLastAck : (NowMs() - cmd.mTime > kEphemeralLifetimeMs)))
+        if (!isConfig && cmd.mSeq > 0 && cmd.mSeq <= sLastAck)
         {
-            continue; // already done, or too old to matter
+            char_type buffer[128] = {};
+            std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"command_skipped\",\"seq\":%d,\"ack\":%d,\"cmd\":\"%s\"}", static_cast<long long>(NowMs()), cmd.mSeq, sLastAck, cmd.mName.c_str());
+            AppendLine(buffer);
+            continue; // already done
+        }
+        if (!isConfig && cmd.mSeq == 0 && NowMs() - cmd.mTime > kEphemeralLifetimeMs)
+        {
+            continue; // too old to matter
+        }
+        if (cmd.mName == "message")
+        {
+            AddMessage(cmd.mText); // shown at once; it does not wait behind commands that need Abe in a level
+            continue;
         }
         sPending.push_back(cmd);
     }
@@ -511,6 +626,8 @@ void Tick()
         AppendLine(buffer);
     }
     sPreviousRescued = sRescuedMudokons_5C1BC2;
+
+    DrawMessages();
 
     if (++sFramesSincePoll >= kPollEveryFrames)
     {
