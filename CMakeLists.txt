@@ -27,9 +27,13 @@ if (${FORCE_COLORED_OUTPUT})
     endif ()
 endif ()
 
+# options.cmake is run as a script by the UpdateConfigHeader target below (to regenerate relive_config.h), not included,
+# so a -D given at configure time only reaches it if it is declared here and forwarded in the command.
+option(ARCHIPELAGO_CLIENT "Enable the Archipelago multiworld hooks (Exoddus only)" OFF)
+
 add_custom_target(
     UpdateConfigHeader
-    COMMAND "${CMAKE}" -D BUILD_NUMBER=${BUILD_NUMBER} -D CI_PROVIDER="${CI_PROVIDER}" -P ${CMAKE_CURRENT_LIST_DIR}/options.cmake
+    COMMAND "${CMAKE}" -D BUILD_NUMBER=${BUILD_NUMBER} -D CI_PROVIDER="${CI_PROVIDER}" -D ARCHIPELAGO_CLIENT=${ARCHIPELAGO_CLIENT} -P ${CMAKE_CURRENT_LIST_DIR}/options.cmake
     WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
 )
 
