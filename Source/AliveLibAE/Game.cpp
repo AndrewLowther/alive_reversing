@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "Archipelago.hpp"
 #include "AddPointer.hpp"
 #include "Game.hpp"
 #include "Sys.hpp"
@@ -771,6 +772,9 @@ EXPORT void CC Game_Loop_467230()
             }
         }
         GetGameAutoPlayer().SyncPoint(SyncPoints::ObjectsUpdateEnd);
+#if ARCHIPELAGO_CLIENT
+        Archipelago::Tick();
+#endif
 
         // Animate everything
         if (sNum_CamSwappers_5C1B66 <= 0)

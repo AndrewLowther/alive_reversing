@@ -47,6 +47,35 @@ void OnSecretCue(const SecretCueEvent& event);
 
 void OnLevelChanged(LevelIds from, s16 fromPath, LevelIds to, s16 toPath, s16 camera);
 
+// ---------------------------------------------------------------------------------------------------------
+// Commands from the client, and game events the client needs.
+//
+// The client appends one JSON object per line to archipelago_commands.jsonl:
+//   {"seq":12,"cmd":"give_throwables","count":5}   add throwables of the level's own kind
+//   {"seq":13,"cmd":"alarm"}                       sound the alarm (a trap)
+//   {"cfg":1,"cmd":"set_good_ending","value":120}  a standing setting: the good ending needs this many rescues.
+//                                                  Applied every time the game starts; the last one in the file wins.
+//   {"seq":0,"t":1731850000000,"cmd":"kill"}       kill Abe (Death Link); ephemeral, ignored if older than 15 s
+// A command with seq > 0 is carried out once: the highest seq done is stored in archipelago_ack.txt, so the client
+// can safely resend everything after a restart. Commands that cannot run yet (no Abe, menu, credits) wait.
+
+enum class EndingKind : s16
+{
+    eAngelic = 0, // every Mudokon rescued
+    eGood = 1,    // enough rescued
+    eBad = 2,
+    eVeryBad = 3, // too many killed
+};
+
+// The game chose an ending (Abe entered the final bird portal).
+void OnEnding(EndingKind kind);
+
+// Called once per frame from the main loop: reads commands, carries them out, and reports Abe dying.
+void Tick();
+
+// The number of rescues the good ending needs, or 0 to use the game's own value.
+s32 GoodEndingOverride();
+
 // Physical blocking. A door whose destination is locked behaves as a closed door until the client unlocks it.
 //
 // Lock state comes from archipelago_unlocks.txt in the working directory (re-read about once a second, so it

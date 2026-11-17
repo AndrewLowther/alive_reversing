@@ -25,6 +25,12 @@ s32 Path_BadEndingMuds(LevelIds lvlId, u32 pathNum)
 
 s32 Path_GoodEndingMuds(LevelIds lvlId, u32 pathNum)
 {
+#if ARCHIPELAGO_CLIENT
+    if (const s32 apValue = Archipelago::GoodEndingOverride())
+    {
+        return apValue;
+    }
+#endif
     return sMudExtData[static_cast<u32>(lvlId)][pathNum].mGoodEnding;
 }
 

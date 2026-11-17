@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "Archipelago.hpp"
 #include "GameEnderController.hpp"
 #include "ResourceManager.hpp"
 #include "stdlib.hpp"
@@ -172,12 +173,18 @@ void GameEnderController::vUpdate_43B920()
                             // Perfect ending
                             gMap_5C3030.SetActiveCam_480D30(LevelIds::eBrewery_Ender_10, 1, 17, CameraSwapEffects::eUnknown_11, 17, 0);
                             field_24_state = GameEnderController_States::eAngelicEnding_5;
+#if ARCHIPELAGO_CLIENT
+                            Archipelago::OnEnding(Archipelago::EndingKind::eAngelic);
+#endif
                         }
                         else
                         {
                             // Good enough ending
                             gMap_5C3030.SetActiveCam_480D30(LevelIds::eBrewery_Ender_10, 1, 18, CameraSwapEffects::eUnknown_11, 17, 0);
                             field_24_state = GameEnderController_States::eGoodEnding_4;
+#if ARCHIPELAGO_CLIENT
+                            Archipelago::OnEnding(Archipelago::EndingKind::eGood);
+#endif
                         }
                     }
                     else
@@ -188,6 +195,9 @@ void GameEnderController::vUpdate_43B920()
                             gAbeBulletProof_5C1BDA = TRUE;
                             gMap_5C3030.SetActiveCam_480D30(LevelIds::eBrewery_Ender_10, 1, 15, CameraSwapEffects::eUnknown_11, 18, 0);
                             field_24_state = GameEnderController_States::eBadEnding_3;
+#if ARCHIPELAGO_CLIENT
+                            Archipelago::OnEnding(Archipelago::EndingKind::eVeryBad);
+#endif
                         }
                         else
                         {
@@ -195,6 +205,9 @@ void GameEnderController::vUpdate_43B920()
                             gAbeBulletProof_5C1BDA = FALSE;
                             gMap_5C3030.SetActiveCam_480D30(LevelIds::eBrewery_Ender_10, 1, 16, CameraSwapEffects::eUnknown_11, 18, 0);
                             field_24_state = GameEnderController_States::eBadEnding_3;
+#if ARCHIPELAGO_CLIENT
+                            Archipelago::OnEnding(Archipelago::EndingKind::eBad);
+#endif
                             sRescuedMudokons_5C1BC2 = sFeecoRestart_SavedMudCount_5C1BC8;
                             sKilledMudokons_5C1BC0 = sFeeco_Restart_KilledMudCount_5C1BC6;
                         }

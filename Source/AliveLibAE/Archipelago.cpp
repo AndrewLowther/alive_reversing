@@ -3,16 +3,27 @@
 
 #if ARCHIPELAGO_CLIENT
 
+#include "Abe.hpp"
+#include "Alarm.hpp"
+#include "BaseBomb.hpp"
+#include "DDCheat.hpp"
 #include "Factory.hpp"
 #include "Game.hpp"
+#include "Layer.hpp"
 #include "Map.hpp"
 #include "PathData.hpp"
 #include "Sfx.hpp"
+#include "ThrowableArray.hpp"
+#include "stdlib.hpp"
 
 #include <chrono>
 #include <cstdio>
 #include <filesystem>
+#include <algorithm>
+#include <cstdlib>
 #include <fstream>
+#include <iterator>
+#include <vector>
 #include <set>
 #include <sstream>
 #include <string>
@@ -22,6 +33,8 @@ namespace Archipelago {
 
 static const char_type* kEventLogFile = "archipelago_events.jsonl";
 static const char_type* kUnlocksFile = "archipelago_unlocks.txt";
+static const char_type* kCommandFile = "archipelago_commands.jsonl";
+static const char_type* kAckFile = "archipelago_ack.txt";
 
 static s64 NowMs()
 {
@@ -266,6 +279,264 @@ void OnLockedDoorTried(LevelIds level, s16 path)
         static_cast<s32>(gMap_5C3030.field_0_current_level), gMap_5C3030.field_2_current_path,
         static_cast<s32>(level), path);
     AppendLine(buffer);
+}
+
+
+// ---------------------------------------------------------------------------------------------------------
+// Commands from the client, and the per-frame update
+
+namespace {
+
+struct Command final
+{
+    s32 mSeq = 0;          // > 0: carried out once, remembered in the ack file. 0: ephemeral.
+    s64 mTime = 0;         // ephemeral commands only: when it was sent, in ms
+    std::string mName;
+    s32 mCount = 0;
+    s32 mValue = 0;
+};
+
+std::vector<Command> sPending;
+std::streamoff sCommandOffset = 0;
+s32 sLastAck = 0;
+bool sCommandsStarted = false;
+s32 sGoodEnding = 0;
+bool sAbeWasDead = false;
+u32 sFramesSincePoll = 0;
+
+constexpr s64 kEphemeralLifetimeMs = 15000;
+constexpr u32 kPollEveryFrames = 15;
+
+// These read our own client's output, one flat JSON object per line, so a small extractor is enough.
+bool FindValue(const std::string& line, const char* key, size_t& pos)
+{
+    const std::string needle = std::string("\"") + key + "\":";
+    const size_t at = line.find(needle);
+    if (at == std::string::npos)
+    {
+        return false;
+    }
+    pos = at + needle.size();
+    while (pos < line.size() && line[pos] == ' ')
+    {
+        pos++;
+    }
+    return pos < line.size();
+}
+
+s64 JsonInt(const std::string& line, const char* key, s64 fallback)
+{
+    size_t pos = 0;
+    return FindValue(line, key, pos) ? std::strtoll(line.c_str() + pos, nullptr, 10) : fallback;
+}
+
+std::string JsonString(const std::string& line, const char* key)
+{
+    size_t pos = 0;
+    if (!FindValue(line, key, pos) || line[pos] != '"')
+    {
+        return {};
+    }
+    const size_t end = line.find('"', pos + 1);
+    return end == std::string::npos ? std::string() : line.substr(pos + 1, end - pos - 1);
+}
+
+void StartCommands()
+{
+    sCommandsStarted = true;
+    std::ifstream in(kAckFile);
+    s32 ack = 0;
+    if (in >> ack)
+    {
+        sLastAck = ack;
+    }
+}
+
+void SaveAck()
+{
+    std::ofstream out(kAckFile, std::ios::trunc);
+    out << sLastAck << "\n";
+}
+
+void ReadNewCommands()
+{
+    std::error_code ec;
+    const auto size = std::filesystem::file_size(kCommandFile, ec);
+    if (ec)
+    {
+        return;
+    }
+    if (static_cast<std::streamoff>(size) < sCommandOffset)
+    {
+        sCommandOffset = 0; // the client rewrote the file
+    }
+    if (static_cast<std::streamoff>(size) == sCommandOffset)
+    {
+        return;
+    }
+
+    std::ifstream in(kCommandFile, std::ios::binary);
+    in.seekg(sCommandOffset);
+    std::string chunk((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+    const size_t lastNewline = chunk.rfind('\n');
+    if (lastNewline == std::string::npos)
+    {
+        return; // a partial line: wait for the rest
+    }
+    sCommandOffset += static_cast<std::streamoff>(lastNewline + 1);
+
+    std::istringstream lines(chunk.substr(0, lastNewline));
+    std::string line;
+    while (std::getline(lines, line))
+    {
+        Command cmd;
+        cmd.mName = JsonString(line, "cmd");
+        if (cmd.mName.empty())
+        {
+            continue;
+        }
+        cmd.mSeq = static_cast<s32>(JsonInt(line, "seq", 0));
+        cmd.mTime = JsonInt(line, "t", 0);
+        cmd.mCount = static_cast<s32>(JsonInt(line, "count", 0));
+        cmd.mValue = static_cast<s32>(JsonInt(line, "value", 0));
+        // A "cfg" line is a standing setting: always applied, and the last one in the file wins.
+        const bool isConfig = JsonInt(line, "cfg", 0) != 0;
+        if (!isConfig && (cmd.mSeq > 0 ? cmd.mSeq <= sLastAck : (NowMs() - cmd.mTime > kEphemeralLifetimeMs)))
+        {
+            continue; // already done, or too old to matter
+        }
+        sPending.push_back(cmd);
+    }
+}
+
+bool AbeIsDead()
+{
+    return sActiveHero_5C1B68 && sActiveHero_5C1B68->field_106_current_motion == eAbeMotions::Motion_57_Dead_4589A0;
+}
+
+bool InGameplay()
+{
+    const LevelIds level = gMap_5C3030.field_0_current_level;
+    return sActiveHero_5C1B68 && level != LevelIds::eMenu_0 && level != LevelIds::eCredits_16 && level != LevelIds::eNone;
+}
+
+void GiveThrowables(s32 count)
+{
+    // The game decides the kind of throwable by level, so this is "more of what this level uses".
+    // Same sequence the pickups use: make the array if it does not exist, add to it, and count them on Abe.
+    if (!gpThrowableArray_5D1E2C)
+    {
+        gpThrowableArray_5D1E2C = ae_new<ThrowableArray>();
+        gpThrowableArray_5D1E2C->ctor_49A630();
+    }
+    const s32 room = 99 - static_cast<s32>(sActiveHero_5C1B68->field_1A2_throwable_count);
+    const s32 amount = std::min(count, std::max(room, 0));
+    if (amount > 0)
+    {
+        gpThrowableArray_5D1E2C->Add_49A7A0(static_cast<s16>(amount));
+        sActiveHero_5C1B68->field_1A2_throwable_count = static_cast<s8>(sActiveHero_5C1B68->field_1A2_throwable_count + amount);
+    }
+}
+
+// Returns true when the command is finished (done, or not worth keeping).
+bool Execute(const Command& cmd)
+{
+    if (cmd.mName == "set_good_ending")
+    {
+        sGoodEnding = cmd.mValue; // needs no Abe
+        return true;
+    }
+    if (!InGameplay())
+    {
+        return false; // try again once Abe is in a level
+    }
+    if (cmd.mName == "give_throwables")
+    {
+        GiveThrowables(cmd.mCount);
+    }
+    else if (cmd.mName == "alarm")
+    {
+        if (auto* pAlarm = ae_new<Alarm>())
+        {
+            pAlarm->ctor_4091F0(150, 0, 30, Layer::eLayer_Above_FG1_39);
+        }
+    }
+    else if (cmd.mName == "kill")
+    {
+        if (!AbeIsDead())
+        {
+            if (auto* pBomb = ae_new<BaseBomb>())
+            {
+                pBomb->ctor_423E70(sActiveHero_5C1B68->field_B8_xpos, sActiveHero_5C1B68->field_BC_ypos, 0, sActiveHero_5C1B68->field_CC_sprite_scale);
+            }
+        }
+    }
+    else
+    {
+        char_type buffer[160] = {};
+        std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"unknown_command\",\"cmd\":\"%s\"}", static_cast<long long>(NowMs()), cmd.mName.c_str());
+        AppendLine(buffer);
+    }
+    return true;
+}
+
+} // namespace
+
+s32 GoodEndingOverride()
+{
+    return sGoodEnding;
+}
+
+void OnEnding(EndingKind kind)
+{
+    char_type buffer[160] = {};
+    std::snprintf(
+        buffer, sizeof(buffer),
+        "{\"t\":%lld,\"event\":\"ending\",\"kind\":\"%s\",\"rescued\":%d,\"killed\":%d}",
+        static_cast<long long>(NowMs()),
+        kind == EndingKind::eAngelic ? "angelic" : kind == EndingKind::eGood ? "good" : kind == EndingKind::eBad ? "bad" : "very_bad",
+        sRescuedMudokons_5C1BC2, sKilledMudokons_5C1BC0);
+    AppendLine(buffer);
+}
+
+void Tick()
+{
+    if (!sCommandsStarted)
+    {
+        StartCommands();
+    }
+
+    // Abe dying is reported once per death (Death Link).
+    const bool dead = AbeIsDead();
+    if (dead && !sAbeWasDead && InGameplay())
+    {
+        char_type buffer[96] = {};
+        std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"abe_died\"}", static_cast<long long>(NowMs()));
+        AppendLine(buffer);
+    }
+    sAbeWasDead = dead;
+
+    if (++sFramesSincePoll >= kPollEveryFrames)
+    {
+        sFramesSincePoll = 0;
+        ReadNewCommands();
+    }
+
+    // Carry out waiting commands in order; stop at the first one that cannot run yet.
+    while (!sPending.empty())
+    {
+        const Command cmd = sPending.front();
+        if (!Execute(cmd))
+        {
+            break;
+        }
+        sPending.erase(sPending.begin());
+        if (cmd.mSeq > sLastAck)
+        {
+            sLastAck = cmd.mSeq;
+            SaveAck();
+        }
+    }
 }
 
 } // namespace Archipelago
