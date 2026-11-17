@@ -53,6 +53,8 @@ void OnLevelChanged(LevelIds from, s16 fromPath, LevelIds to, s16 toPath, s16 ca
 // The client appends one JSON object per line to archipelago_commands.jsonl:
 //   {"seq":12,"cmd":"give_throwables","count":5}   add throwables of the level's own kind
 //   {"seq":13,"cmd":"alarm"}                       sound the alarm (a trap)
+//   {"seq":0,"t":<ms>,"cmd":"teleport","level":2,"path":5,"camera":9}  TESTING ONLY: jump to a camera, like the debug
+//                                                  teleport menu does (game LevelId, path, camera)
 //   {"seq":0,"t":<ms>,"cmd":"message","text":"Got 5 Throwables"}  show a line of text in the corner of the screen for a few
 //                                                  seconds (ASCII only, no quotes; ephemeral like kill)
 //   {"cfg":1,"cmd":"set_good_ending","value":120}  a standing setting: the good ending needs this many rescues.
@@ -78,7 +80,8 @@ void Tick();
 // The number of rescues the good ending needs, or 0 to use the game's own value.
 s32 GoodEndingOverride();
 
-// Physical blocking. A door whose destination is locked behaves as a closed door until the client unlocks it.
+// Physical blocking. A door whose destination is locked behaves as a closed door, and Abe will not enter a well that leads
+// somewhere locked, until the client unlocks it.
 //
 // Lock state comes from archipelago_unlocks.txt in the working directory (re-read about once a second, so it
 // can be edited while playing). One directive per line:
@@ -88,11 +91,15 @@ s32 GoodEndingOverride();
 //   zulag <l> <z>    area <z> of level <l> is unlocked
 // Levels 1 (Necrum Mines) is always open. If the file is missing nothing is blocked.
 //
-// This is only the first, door-based part: path transitions, level loaders, teleporters and portals are not
-// blocked yet. Checks are held back by the client regardless, so logic stays sound.
+// Doors and express wells are blocked. Path transitions, level loaders, teleporters and portals are not. Checks are held back
+// by the client regardless, so logic stays sound.
 bool IsDestinationLocked(LevelIds level, s16 path);
 
-// Abe tried a locked door: logs it and plays the game's "access denied" buzzer (rate limited).
+// Abe tried a locked way out (a door or a well): logs it, plays the game's "access denied" buzzer and shows what is needed
+// in the corner (rate limited). `kind` is "door" or "well" and names the log event (locked_door, locked_well).
+void OnLockedExitTried(LevelIds level, s16 path, const char* kind);
+
+// The same, for doors.
 void OnLockedDoorTried(LevelIds level, s16 path);
 
 } // namespace Archipelago

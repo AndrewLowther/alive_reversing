@@ -2,6 +2,8 @@
 #include "Abe.hpp"
 #include "Function.hpp"
 #include "Map.hpp"
+#include "Archipelago.hpp"
+#include "SwitchStates.hpp"
 #include "Sound/Midi.hpp"
 #include "Sfx.hpp"
 #include "DebugHelpers.hpp"
@@ -3256,6 +3258,20 @@ void Abe::Motion_0_Idle_44EEB0()
                         break;
                     }
 
+#if ARCHIPELAGO_CLIENT
+                    {
+                        // An express well leads to a level and path chosen by its switch; keep Abe out if that is locked.
+                        const Path_WellExpress* pExpress = static_cast<const Path_WellExpress*>(pTlv);
+                        const bool enabled = SwitchStates_Get_466020(pExpress->field_2_switch_id) != 0;
+                        const LevelIds toLevel = enabled ? pExpress->field_24_enabled_well_level : pExpress->field_1C_disabled_well_level;
+                        const s16 toPath = enabled ? pExpress->field_26_enabled_well_path : pExpress->field_1E_disabled_well_path;
+                        if (Archipelago::IsDestinationLocked(toLevel, toPath))
+                        {
+                            Archipelago::OnLockedExitTried(toLevel, toPath, "well");
+                            break;
+                        }
+                    }
+#endif
                     field_1AC_flags.Clear(Flags_1AC::e1AC_Bit3_WalkToRun);
                     field_FC_pPathTLV = pTlv;
                     field_106_current_motion = eAbeMotions::jMotion_81_WellBegin_45C7F0;
@@ -3637,9 +3653,28 @@ void Abe::Motion_3_Fall_459B60()
                 if ((pWellBase->field_0_scale == Scale_short::eFull_0 && field_CC_sprite_scale == FP_FromInteger(1))
                     || (pWellBase->field_0_scale == Scale_short::eHalf_1 && field_CC_sprite_scale == FP_FromDouble(0.5)))
                 {
-                    field_1AC_flags.Set(Flags_1AC::e1AC_Bit3_WalkToRun);
-                    field_106_current_motion = eAbeMotions::Motion_75_JumpIntoWell_45C7B0;
-                    return;
+#if ARCHIPELAGO_CLIENT
+                    // Falling into an express well whose destination is locked: do not go in (Abe lands on what is below).
+                    bool apLocked = false;
+                    if (field_FC_pPathTLV->field_4_type == TlvTypes::WellExpress_23)
+                    {
+                        const Path_WellExpress* pExpress = static_cast<const Path_WellExpress*>(field_FC_pPathTLV);
+                        const bool enabled = SwitchStates_Get_466020(pExpress->field_2_switch_id) != 0;
+                        const LevelIds toLevel = enabled ? pExpress->field_24_enabled_well_level : pExpress->field_1C_disabled_well_level;
+                        const s16 toPath = enabled ? pExpress->field_26_enabled_well_path : pExpress->field_1E_disabled_well_path;
+                        apLocked = Archipelago::IsDestinationLocked(toLevel, toPath);
+                        if (apLocked)
+                        {
+                            Archipelago::OnLockedExitTried(toLevel, toPath, "well");
+                        }
+                    }
+                    if (!apLocked)
+#endif
+                    {
+                        field_1AC_flags.Set(Flags_1AC::e1AC_Bit3_WalkToRun);
+                        field_106_current_motion = eAbeMotions::Motion_75_JumpIntoWell_45C7B0;
+                        return;
+                    }
                 }
             }
         }

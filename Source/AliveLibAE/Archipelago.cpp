@@ -284,7 +284,7 @@ bool IsDestinationLocked(LevelIds level, s16 path)
     return WhyLocked(level, path, nullptr) != Lock::Reason::eNone;
 }
 
-void OnLockedDoorTried(LevelIds level, s16 path)
+void OnLockedExitTried(LevelIds level, s16 path, const char* kind)
 {
     static u32 sLastFrame = 0;
     if (sGnFrame_5C1B84 - sLastFrame < 45)
@@ -315,11 +315,16 @@ void OnLockedDoorTried(LevelIds level, s16 path)
     char_type buffer[192] = {};
     std::snprintf(
         buffer, sizeof(buffer),
-        "{\"t\":%lld,\"event\":\"locked_door\",\"level\":%d,\"path\":%d,\"to\":{\"level\":%d,\"path\":%d}}",
-        static_cast<long long>(NowMs()),
+        "{\"t\":%lld,\"event\":\"locked_%s\",\"level\":%d,\"path\":%d,\"to\":{\"level\":%d,\"path\":%d}}",
+        static_cast<long long>(NowMs()), kind,
         static_cast<s32>(gMap_5C3030.field_0_current_level), gMap_5C3030.field_2_current_path,
         static_cast<s32>(level), path);
     AppendLine(buffer);
+}
+
+void OnLockedDoorTried(LevelIds level, s16 path)
+{
+    OnLockedExitTried(level, path, "door");
 }
 
 
@@ -335,6 +340,9 @@ struct Command final
     std::string mName;
     s32 mCount = 0;
     s32 mValue = 0;
+    s32 mLevel = 0;
+    s32 mPath = 0;
+    s32 mCamera = 0;
     std::string mText;
 };
 
@@ -409,6 +417,9 @@ void ReadNewCommands()
         cmd.mCount = static_cast<s32>(Json::Int(object, "count", 0));
         cmd.mValue = static_cast<s32>(Json::Int(object, "value", 0));
         cmd.mText = Json::String(object, "text");
+        cmd.mLevel = static_cast<s32>(Json::Int(object, "level", 0));
+        cmd.mPath = static_cast<s32>(Json::Int(object, "path", 0));
+        cmd.mCamera = static_cast<s32>(Json::Int(object, "camera", 0));
         // A "cfg" line is a standing setting: always applied, and the last one in the file wins.
         const bool isConfig = Json::Int(object, "cfg", 0) != 0;
         if (!isConfig && cmd.mSeq > 0 && cmd.mSeq <= sLastAck)
@@ -460,6 +471,54 @@ void GiveThrowables(s32 count)
     }
 }
 
+// TESTING ONLY. Copies what the game's debug teleport menu does: point the map at a camera, then on a later frame, once it
+// has loaded, put Abe in it. Lets a locked well or door far into the game be tried in seconds.
+struct Teleport final
+{
+    bool mActive = false;
+    LevelIds mLevel = LevelIds::eNone;
+    s16 mPath = 0;
+    s16 mCamera = 0;
+    u32 mStartedAtFrame = 0;
+};
+Teleport sTeleport;
+
+void StepTeleport()
+{
+    if (!sTeleport.mActive)
+    {
+        return;
+    }
+    const bool arrived = gMap_5C3030.field_6_state == Map::CamChangeStates::eInactive_0
+        && gMap_5C3030.field_0_current_level == sTeleport.mLevel && gMap_5C3030.field_2_current_path == sTeleport.mPath
+        && gMap_5C3030.field_4_current_camera == sTeleport.mCamera;
+    if (arrived && sActiveHero_5C1B68)
+    {
+        PSX_Point pos;
+        gMap_5C3030.GetCurrentCamCoords_480680(&pos);
+        sActiveHero_5C1B68->field_B8_xpos = FP_FromInteger(pos.field_0_x + 184);
+        sActiveHero_5C1B68->field_BC_ypos = FP_FromInteger(pos.field_2_y + 60);
+        sActiveHero_5C1B68->field_106_current_motion = 3;
+        sActiveHero_5C1B68->field_1AC_flags.Set(Abe::e1AC_Bit7_land_softly);
+        sActiveHero_5C1B68->field_C2_lvl_number = sTeleport.mLevel;
+        sActiveHero_5C1B68->field_C0_path_number = sTeleport.mPath;
+        sDDCheat_FlyingEnabled_5C2C08 = false;
+        sControlledCharacter_5C1B8C->field_100_pCollisionLine = nullptr;
+        sControlledCharacter_5C1B8C->field_F8_LastLineYPos = sControlledCharacter_5C1B8C->field_BC_ypos;
+        sTeleport.mActive = false;
+
+        char_type buffer[128] = {};
+        std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"teleported\",\"level\":%d,\"path\":%d,\"camera\":%d}", static_cast<long long>(NowMs()), static_cast<s32>(sTeleport.mLevel), sTeleport.mPath, sTeleport.mCamera);
+        AppendLine(buffer);
+    }
+    else if (sGnFrame_5C1B84 - sTeleport.mStartedAtFrame > 300)
+    {
+        sDDCheat_FlyingEnabled_5C2C08 = false; // the camera never arrived: give up rather than leave Abe flying
+        sTeleport.mActive = false;
+        AddMessage("Teleport failed");
+    }
+}
+
 // Returns true when the command is finished (done, or not worth keeping).
 bool Execute(const Command& cmd)
 {
@@ -491,6 +550,15 @@ bool Execute(const Command& cmd)
         char_type buffer[160] = {};
         std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"alarm\",\"instances_before\":%d,\"died_at_once\":%s}", static_cast<long long>(NowMs()), instancesBefore, diedAtOnce ? "true" : "false");
         AppendLine(buffer);
+    }
+    else if (cmd.mName == "teleport")
+    {
+        if (!sTeleport.mActive)
+        {
+            sTeleport = {true, static_cast<LevelIds>(cmd.mLevel), static_cast<s16>(cmd.mPath), static_cast<s16>(cmd.mCamera), sGnFrame_5C1B84};
+            sDDCheat_FlyingEnabled_5C2C08 = true;
+            gMap_5C3030.SetActiveCam_480D30(sTeleport.mLevel, sTeleport.mPath, sTeleport.mCamera, CameraSwapEffects::eInstantChange_0, 0, 0);
+        }
     }
     else if (cmd.mName == "kill")
     {
@@ -557,6 +625,7 @@ void Tick()
     }
     sPreviousRescued = sRescuedMudokons_5C1BC2;
 
+    StepTeleport();
     DrawMessages();
 
     if (++sFramesSincePoll >= kPollEveryFrames)
