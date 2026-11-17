@@ -37,6 +37,18 @@ add_custom_target(
     WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
 )
 
+# Also generate the header now, not only when building, so it is correct as soon as configuring finishes.
+execute_process(
+    COMMAND "${CMAKE}" "-DBUILD_NUMBER=${BUILD_NUMBER}" "-DCI_PROVIDER=${CI_PROVIDER}" "-DARCHIPELAGO_CLIENT=${ARCHIPELAGO_CLIENT}" -P "${CMAKE_CURRENT_LIST_DIR}/options.cmake"
+    WORKING_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}"
+    RESULT_VARIABLE UPDATE_CONFIG_HEADER_RESULT
+    OUTPUT_QUIET
+)
+if (NOT UPDATE_CONFIG_HEADER_RESULT EQUAL 0)
+    message(WARNING "Generating relive_config.h failed (${UPDATE_CONFIG_HEADER_RESULT})")
+endif()
+message(STATUS "Archipelago client hooks: ${ARCHIPELAGO_CLIENT}")
+
 find_package(SDL3 REQUIRED CONFIG)
 
 set(CompilerFlags
