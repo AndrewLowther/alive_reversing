@@ -456,10 +456,21 @@ bool Execute(const Command& cmd)
     }
     else if (cmd.mName == "alarm")
     {
+        // The game's Alarm destroys itself if another alarm is already counted as active.
+        const s16 instancesBefore = alarmInstanceCount_5C1BB4;
+        bool diedAtOnce = false;
         if (auto* pAlarm = ae_new<Alarm>())
         {
-            pAlarm->ctor_4091F0(150, 0, 30, Layer::eLayer_Above_FG1_39);
+            // No start delay, so it begins on the next frame; it runs for 180 frames.
+            pAlarm->ctor_4091F0(180, 0, 0, Layer::eLayer_Above_FG1_39);
+            diedAtOnce = pAlarm->field_6_flags.Get(BaseGameObject::eDead_Bit3);
         }
+        // The Alarm's own buzzer only starts on its first update and its red pulse is faint, so give an immediate cue too.
+        SFX_Play_46FBA0(SoundEffect::SecurityDoorDeny_38, 127, 0);
+
+        char_type buffer[160] = {};
+        std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"alarm\",\"instances_before\":%d,\"died_at_once\":%s}", static_cast<long long>(NowMs()), instancesBefore, diedAtOnce ? "true" : "false");
+        AppendLine(buffer);
     }
     else if (cmd.mName == "kill")
     {
