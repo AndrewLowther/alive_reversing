@@ -47,6 +47,23 @@ void OnSecretCue(const SecretCueEvent& event);
 
 void OnLevelChanged(LevelIds from, s16 fromPath, LevelIds to, s16 toPath, s16 camera);
 
+// Physical blocking. A door whose destination is locked behaves as a closed door until the client unlocks it.
+//
+// Lock state comes from archipelago_unlocks.txt in the working directory (re-read about once a second, so it
+// can be edited while playing). One directive per line:
+//   enforce          turn blocking on (without it nothing is ever blocked)
+//   area_access      also block individual areas (zulags), not just levels
+//   level <id>       the level with this game LevelId is unlocked
+//   zulag <l> <z>    area <z> of level <l> is unlocked
+// Levels 1 (Necrum Mines) is always open. If the file is missing nothing is blocked.
+//
+// This is only the first, door-based part: path transitions, level loaders, teleporters and portals are not
+// blocked yet. Checks are held back by the client regardless, so logic stays sound.
+bool IsDestinationLocked(LevelIds level, s16 path);
+
+// Abe tried a locked door: logs it and plays the game's "access denied" buzzer (rate limited).
+void OnLockedDoorTried(LevelIds level, s16 path);
+
 } // namespace Archipelago
 
 #endif
