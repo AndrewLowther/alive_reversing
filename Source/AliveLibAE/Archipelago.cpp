@@ -516,6 +516,16 @@ void Tick()
     }
     sAbeWasDead = dead;
 
+    // The game puts its rescued count back when a save is loaded or Abe restarts, which no other event shows.
+    static s16 sPreviousRescued = 0;
+    if (sRescuedMudokons_5C1BC2 < sPreviousRescued)
+    {
+        char_type buffer[128] = {};
+        std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"counters_restored\",\"from\":%d,\"to\":%d}", static_cast<long long>(NowMs()), sPreviousRescued, sRescuedMudokons_5C1BC2);
+        AppendLine(buffer);
+    }
+    sPreviousRescued = sRescuedMudokons_5C1BC2;
+
     if (++sFramesSincePoll >= kPollEveryFrames)
     {
         sFramesSincePoll = 0;
