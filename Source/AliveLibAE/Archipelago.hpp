@@ -89,7 +89,7 @@ s32 GoodEndingOverride();
 //   area_access      also block individual areas (zulags), not just levels
 //   level <id>       the level with this game LevelId is unlocked
 //   zulag <l> <z>    area <z> of level <l> is unlocked
-// Levels 1 (Necrum Mines) is always open. If the file is missing nothing is blocked.
+// Levels 1 (Necrum Mines) and 2 (Necrum) are always open. If the file is missing nothing is blocked.
 //
 // Doors and express wells are blocked. Path transitions, level loaders, teleporters and portals are not. Checks are held back
 // by the client regardless, so logic stays sound.
