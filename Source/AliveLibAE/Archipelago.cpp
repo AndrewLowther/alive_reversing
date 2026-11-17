@@ -206,6 +206,18 @@ void Reload()
                 fresh.mLevels.insert(static_cast<s16>(id));
             }
         }
+        else if (key == "need")
+        {
+            // "need <level> <text to the end of the line>": what the level still needs (shown when its door is tried)
+            s32 level = 0;
+            if (words >> level)
+            {
+                std::string rest;
+                std::getline(words, rest);
+                const auto first = rest.find_first_not_of(' ');
+                fresh.mNeeds[static_cast<s16>(level)] = first == std::string::npos ? std::string() : rest.substr(first);
+            }
+        }
         else if (key == "zulag")
         {
             s32 level = 0;
@@ -300,7 +312,12 @@ void OnLockedExitTried(LevelIds level, s16 path, const char* kind)
     std::vector<s16> areas;
     const LockReason reason = WhyLocked(level, path, &areas);
     std::string text = "Locked";
-    if (reason == Lock::Reason::eLevelPass)
+    const auto need = sUnlocks.mNeeds.find(Lock::BaseLevel(static_cast<s16>(level)));
+    if (reason == Lock::Reason::eLevelPass && need != sUnlocks.mNeeds.end() && !need->second.empty())
+    {
+        text = std::string("Locked: needs ") + need->second; // written by the client: the pass and/or the Mudokon count
+    }
+    else if (reason == Lock::Reason::eLevelPass)
     {
         text = std::string("Locked: needs the ") + LevelName(static_cast<s16>(level)) + " Pass";
     }

@@ -4,7 +4,9 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <map>
 #include <set>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -32,6 +34,7 @@ struct UnlockState final
     bool mLockStartLevel = false;  // TESTING ONLY: treat Necrum Mines like any other level, so it can be locked too
     std::set<Level> mLevels;                       // levels whose pass has arrived
     std::set<std::pair<Level, Level>> mZulags;     // (level, area) whose access item has arrived
+    std::map<Level, std::string> mNeeds;           // level -> what it still needs, for the message when its door is tried
 };
 
 enum class Reason
