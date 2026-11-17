@@ -88,6 +88,10 @@ s32 GoodEndingOverride();
 // instead, and when it does not have them a message in the corner says so.
 bool GoodEndingAllowed(bool enoughRescues);
 
+// The "Saved Mudokons" number on the in-game status boards: with Mudokon Saved items it is the number of items received (what
+// the goal counts), otherwise `rescued`, the game's own count.
+s32 SavedMudokonsShown(s32 rescued);
+
 // Physical blocking. A door whose destination is locked behaves as a closed door, and Abe will not enter a well that leads
 // somewhere locked, until the client unlocks it.
 //

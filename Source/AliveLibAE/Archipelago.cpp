@@ -651,6 +651,11 @@ s32 GoodEndingOverride()
     return sGoodEnding;
 }
 
+s32 SavedMudokonsShown(s32 rescued)
+{
+    return sGoalItems > 0 ? sSavedMudokons : rescued;
+}
+
 bool GoodEndingAllowed(bool enoughRescues)
 {
     if (sGoalItems <= 0)

@@ -8,6 +8,7 @@
 #include "MainMenu.hpp"
 #include "Map.hpp"
 #include "Sys.hpp"
+#include "Archipelago.hpp"
 
 void StatsSign_ForceLink()
 {
@@ -172,7 +173,11 @@ void LCDStatusBoard::vRender_47B900(PrimHeader** ppOt)
         maxWidth = std::max(font4Width, maxWidth);
 
         // Saved Mudokons
-        sprintf(text, "%3d", sRescuedMudokons_5C1BC2);
+        s32 savedShown = sRescuedMudokons_5C1BC2;
+#if ARCHIPELAGO_CLIENT
+        savedShown = Archipelago::SavedMudokonsShown(sRescuedMudokons_5C1BC2); // Mudokon Saved items, when they are the goal
+#endif
+        sprintf(text, "%3d", savedShown);
         const s32 font2Width = field_58_font2.MeasureWidth_433700(text);
         field_58_font2.DrawString_4337D0(
             ppOt,
