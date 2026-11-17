@@ -3,6 +3,8 @@
 
 #if ARCHIPELAGO_CLIENT
 
+#include "ArchipelagoJson.hpp"
+
 #include "Abe.hpp"
 #include "Alarm.hpp"
 #include "BaseBomb.hpp"
@@ -44,8 +46,20 @@ static s64 NowMs()
 // One JSON object per line, flushed immediately so a crash loses nothing.
 static void AppendLine(const char_type* line)
 {
-    if (FILE* f = std::fopen(kEventLogFile, "a"))
+    if (FILE* f = std::fopen(kEventLogFile, "a+b"))
     {
+        // If someone edited the file and left no final newline, start a new line rather than gluing onto the last one.
+        bool needNewline = false;
+        if (std::fseek(f, -1, SEEK_END) == 0)
+        {
+            const int last = std::fgetc(f);
+            needNewline = last != '\n' && last != EOF;
+        }
+        std::fseek(f, 0, SEEK_END); // required between reading and writing on the same stream
+        if (needNewline)
+        {
+            std::fputc('\n', f);
+        }
         std::fputs(line, f);
         std::fputc('\n', f);
         std::fclose(f);
@@ -307,40 +321,6 @@ u32 sFramesSincePoll = 0;
 constexpr s64 kEphemeralLifetimeMs = 15000;
 constexpr u32 kPollEveryFrames = 15;
 
-// These read our own client's output, one flat JSON object per line, so a small extractor is enough.
-bool FindValue(const std::string& line, const char* key, size_t& pos)
-{
-    const std::string needle = std::string("\"") + key + "\":";
-    const size_t at = line.find(needle);
-    if (at == std::string::npos)
-    {
-        return false;
-    }
-    pos = at + needle.size();
-    while (pos < line.size() && line[pos] == ' ')
-    {
-        pos++;
-    }
-    return pos < line.size();
-}
-
-s64 JsonInt(const std::string& line, const char* key, s64 fallback)
-{
-    size_t pos = 0;
-    return FindValue(line, key, pos) ? std::strtoll(line.c_str() + pos, nullptr, 10) : fallback;
-}
-
-std::string JsonString(const std::string& line, const char* key)
-{
-    size_t pos = 0;
-    if (!FindValue(line, key, pos) || line[pos] != '"')
-    {
-        return {};
-    }
-    const size_t end = line.find('"', pos + 1);
-    return end == std::string::npos ? std::string() : line.substr(pos + 1, end - pos - 1);
-}
-
 void StartCommands()
 {
     sCommandsStarted = true;
@@ -377,30 +357,27 @@ void ReadNewCommands()
 
     std::ifstream in(kCommandFile, std::ios::binary);
     in.seekg(sCommandOffset);
-    std::string chunk((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
-    const size_t lastNewline = chunk.rfind('\n');
-    if (lastNewline == std::string::npos)
-    {
-        return; // a partial line: wait for the rest
-    }
-    sCommandOffset += static_cast<std::streamoff>(lastNewline + 1);
+    const std::string chunk((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
 
-    std::istringstream lines(chunk.substr(0, lastNewline));
-    std::string line;
-    while (std::getline(lines, line))
+    // Read the file as a series of JSON objects, not lines: a file saved without a final newline, or a command
+    // appended straight onto the end of the last line, is still read correctly. A half-written object waits.
+    std::vector<std::string> objects;
+    sCommandOffset += static_cast<std::streamoff>(Json::ExtractObjects(chunk, objects));
+
+    for (const std::string& object : objects)
     {
         Command cmd;
-        cmd.mName = JsonString(line, "cmd");
+        cmd.mName = Json::String(object, "cmd");
         if (cmd.mName.empty())
         {
             continue;
         }
-        cmd.mSeq = static_cast<s32>(JsonInt(line, "seq", 0));
-        cmd.mTime = JsonInt(line, "t", 0);
-        cmd.mCount = static_cast<s32>(JsonInt(line, "count", 0));
-        cmd.mValue = static_cast<s32>(JsonInt(line, "value", 0));
+        cmd.mSeq = static_cast<s32>(Json::Int(object, "seq", 0));
+        cmd.mTime = Json::Int(object, "t", 0);
+        cmd.mCount = static_cast<s32>(Json::Int(object, "count", 0));
+        cmd.mValue = static_cast<s32>(Json::Int(object, "value", 0));
         // A "cfg" line is a standing setting: always applied, and the last one in the file wins.
-        const bool isConfig = JsonInt(line, "cfg", 0) != 0;
+        const bool isConfig = Json::Int(object, "cfg", 0) != 0;
         if (!isConfig && (cmd.mSeq > 0 ? cmd.mSeq <= sLastAck : (NowMs() - cmd.mTime > kEphemeralLifetimeMs)))
         {
             continue; // already done, or too old to matter
@@ -461,12 +438,10 @@ bool Execute(const Command& cmd)
         bool diedAtOnce = false;
         if (auto* pAlarm = ae_new<Alarm>())
         {
-            // No start delay, so it begins on the next frame; it runs for 180 frames.
-            pAlarm->ctor_4091F0(180, 0, 0, Layer::eLayer_Above_FG1_39);
+            // Starts on the next frame and runs for 120 frames (about four seconds): a few pulses and buzzes.
+            pAlarm->ctor_4091F0(120, 0, 0, Layer::eLayer_Above_FG1_39);
             diedAtOnce = pAlarm->field_6_flags.Get(BaseGameObject::eDead_Bit3);
         }
-        // The Alarm's own buzzer only starts on its first update and its red pulse is faint, so give an immediate cue too.
-        SFX_Play_46FBA0(SoundEffect::SecurityDoorDeny_38, 127, 0);
 
         char_type buffer[160] = {};
         std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"alarm\",\"instances_before\":%d,\"died_at_once\":%s}", static_cast<long long>(NowMs()), instancesBefore, diedAtOnce ? "true" : "false");
@@ -552,6 +527,12 @@ void Tick()
             break;
         }
         sPending.erase(sPending.begin());
+        if (cmd.mSeq > 0)
+        {
+            char_type buffer[128] = {};
+            std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"command_done\",\"seq\":%d,\"cmd\":\"%s\"}", static_cast<long long>(NowMs()), cmd.mSeq, cmd.mName.c_str());
+            AppendLine(buffer);
+        }
         if (cmd.mSeq > sLastAck)
         {
             sLastAck = cmd.mSeq;
