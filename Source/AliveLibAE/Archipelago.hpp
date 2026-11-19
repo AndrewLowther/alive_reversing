@@ -52,6 +52,7 @@ void OnLevelChanged(LevelIds from, s16 fromPath, LevelIds to, s16 toPath, s16 ca
 //
 // The client appends one JSON object per line to archipelago_commands.jsonl:
 //   {"seq":12,"cmd":"give_throwables","count":5}   add throwables of the level's own kind
+//   (give_throwables waits, without holding up the other commands, until Abe is on a path whose level has throwables)
 //   {"seq":13,"cmd":"alarm"}                       sound the alarm (a trap)
 //   {"seq":14,"cmd":"fart"}                        make Abe fart (a trap): sound, noise Sligs hear, smoke
 //   {"seq":0,"t":<ms>,"cmd":"teleport","level":2,"path":5,"camera":9}  TESTING ONLY: jump to a camera, like the debug
@@ -87,6 +88,10 @@ s32 GoodEndingOverride();
 // The good ending's own check, `enoughRescues`, may be replaced: with Mudokon Saved items the ending needs that many items
 // instead, and when it does not have them a message in the corner says so.
 bool GoodEndingAllowed(bool enoughRescues);
+
+// True if the current path's throwables can be loaded (their sprites are in the level's archive). Necrum has no rock sprites, so
+// throwables there crash the game when a save is loaded, or when one is thrown.
+bool ThrowablesUsableHere(bool duringLoad = false);
 
 // The "Saved Mudokons" number on the in-game status boards: with Mudokon Saved items it is the number of items received (what
 // the goal counts), otherwise `rescued`, the game's own count.

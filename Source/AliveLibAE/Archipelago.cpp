@@ -19,7 +19,9 @@
 #include "Map.hpp"
 #include "Particle.hpp"
 #include "PathData.hpp"
+#include "LvlArchive.hpp"
 #include "Sfx.hpp"
+#include "Throwable.hpp"
 #include "ThrowableArray.hpp"
 #include "stdlib.hpp"
 
@@ -474,6 +476,83 @@ bool InGameplay()
     return sActiveHero_5C1B68 && level != LevelIds::eMenu_0 && level != LevelIds::eCredits_16 && level != LevelIds::eNone;
 }
 
+} // namespace
+
+// Can the current path's throwables be used? The kind comes from the path (rocks in the Mines, bones, meat, grenades...), and each
+// kind's sprites are in the level's own archive: Necrum has no rock sprites because nothing there is ever thrown. Loading a
+// throwable whose file is missing crashes the game, so a Throwables item must not be given in such a level, and a save made with
+// throwables in one cannot be loaded (Couldn't find PUIROCK.BAN in LVL).
+bool ThrowablesUsableHere(bool duringLoad)
+{
+    // Looking in the archive while the map is changing cameras could catch it half set up, so then say yes without remembering it
+    // (a save being loaded is the exception: the game itself is about to read the same archive).
+    if (!duringLoad && gMap_5C3030.field_6_state != Map::CamChangeStates::eInactive_0)
+    {
+        return true;
+    }
+    static LevelIds sCheckedLevel = LevelIds::eNone;
+    static s16 sCheckedPath = -1;
+    static bool sUsable = true;
+    const LevelIds level = gMap_5C3030.field_0_current_level;
+    const s16 path = gMap_5C3030.field_2_current_path;
+    if (level == sCheckedLevel && path == sCheckedPath)
+    {
+        return sUsable; // the archive does not change while we stay on this path
+    }
+    sCheckedLevel = level;
+    sCheckedPath = path;
+    sUsable = true;
+    if (level == LevelIds::eMenu_0 || level == LevelIds::eCredits_16 || level == LevelIds::eNone)
+    {
+        return sUsable;
+    }
+    const PathBlyRec* pRec = Path_Get_Bly_Record_460F30(level, static_cast<u16>(path));
+    if (!pRec)
+    {
+        return sUsable;
+    }
+    const char_type* file = nullptr;
+    switch (throwable_types_55FAFC[LOBYTE(pRec->field_C_overlay_id)])
+    {
+        case AETypes::eBone_11: file = "BONE.BAN"; break;
+        case AETypes::eMetal_24: file = "METAL.BAN"; break;
+        case AETypes::eGrenade_65: file = "GRENADE.BAN"; break;
+        case AETypes::eMeat_84: file = "MEAT.BAN"; break;
+        case AETypes::eRock_105: file = "PUIROCK.BAN"; break;
+        default: break; // not a kind we know: leave it to the game
+    }
+    if (file && !sLvlArchive_5BC520.Find_File_Record_433160(file))
+    {
+        sUsable = false; // the lookup has logged "Couldn't find ... in LVL"; that is expected here
+        char_type buffer[160] = {};
+        std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"throwables_unusable\",\"level\":%d,\"path\":%d,\"missing\":\"%s\"}", static_cast<long long>(NowMs()), static_cast<s32>(level), path, file);
+        AppendLine(buffer);
+    }
+    return sUsable;
+}
+
+namespace {
+
+// Abe is carrying throwables that this level cannot use (a save made before the check existed, or carried over somehow): take
+// them away rather than crash the first time one is thrown.
+void DropUnusableThrowables()
+{
+    if (!sActiveHero_5C1B68 || sActiveHero_5C1B68->field_1A2_throwable_count <= 0 || ThrowablesUsableHere())
+    {
+        return;
+    }
+    const s32 count = sActiveHero_5C1B68->field_1A2_throwable_count;
+    if (gpThrowableArray_5D1E2C)
+    {
+        gpThrowableArray_5D1E2C->Remove_49AA00(static_cast<s16>(count));
+    }
+    sActiveHero_5C1B68->field_1A2_throwable_count = 0;
+    char_type buffer[96] = {};
+    std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"throwables_dropped\",\"count\":%d}", static_cast<long long>(NowMs()), count);
+    AppendLine(buffer);
+    AddMessage("Nothing can be thrown here: throwables removed");
+}
+
 void GiveThrowables(s32 count)
 {
     // The game decides the kind of throwable by level, so this is "more of what this level uses".
@@ -591,6 +670,10 @@ bool Execute(const Command& cmd)
     }
     if (cmd.mName == "give_throwables")
     {
+        if (!ThrowablesUsableHere())
+        {
+            return false; // waits (the other commands go on) until Abe is on a path whose level has throwables
+        }
         GiveThrowables(cmd.mCount);
     }
     else if (cmd.mName == "alarm")
@@ -720,26 +803,40 @@ void Tick()
         ReadNewCommands();
     }
 
-    // Carry out waiting commands in order; stop at the first one that cannot run yet.
-    while (!sPending.empty())
+    DropUnusableThrowables();
+
+    // Carry out waiting commands in order. One that cannot run yet (no Abe in a level, or no throwables on this path) waits while
+    // the others go on. The ack never passes a waiting command, so after a restart it is still carried out.
+    static s32 sHighestDone = 0;
+    for (size_t i = 0; i < sPending.size();)
     {
-        const Command cmd = sPending.front();
+        const Command cmd = sPending[i];
         if (!Execute(cmd))
         {
-            break;
+            ++i;
+            continue;
         }
-        sPending.erase(sPending.begin());
+        sPending.erase(sPending.begin() + static_cast<std::ptrdiff_t>(i));
         if (cmd.mSeq > 0)
         {
             char_type buffer[128] = {};
             std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"command_done\",\"seq\":%d,\"cmd\":\"%s\"}", static_cast<long long>(NowMs()), cmd.mSeq, cmd.mName.c_str());
             AppendLine(buffer);
+            sHighestDone = std::max(sHighestDone, cmd.mSeq);
         }
-        if (cmd.mSeq > sLastAck)
+    }
+    s32 ack = sHighestDone;
+    for (const Command& waiting : sPending)
+    {
+        if (waiting.mSeq > 0)
         {
-            sLastAck = cmd.mSeq;
-            SaveAck();
+            ack = std::min(ack, waiting.mSeq - 1);
         }
+    }
+    if (ack > sLastAck)
+    {
+        sLastAck = ack;
+        SaveAck();
     }
 }
 
