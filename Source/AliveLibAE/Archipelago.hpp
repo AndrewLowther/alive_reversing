@@ -115,6 +115,10 @@ s32 SavedMudokonsShown(s32 rescued);
 // by the client regardless, so logic stays sound.
 bool IsDestinationLocked(LevelIds level, s16 path);
 
+// Abe has gone into a BirdPortal that takes him out of the level (not a Mudokon rescue portal). Logs `abe_portal`, or `final_portal` when it
+// is one of the two in the final rooms (Brewery Ender path 1, cameras 12 and 13), with whether the goal's count is met (`enough`).
+void OnAbeEnteredPortal(LevelIds level, s16 path, s16 camera);
+
 // Is this ElectricWall (its level, path and position, as in the TLV) one that an opened group switches off? An ElectricWall that
 // answers yes behaves as if its lever were already pulled: hidden, silent, harmless.
 bool IsFenceOpen(LevelIds level, s16 path, s32 x, s32 y);

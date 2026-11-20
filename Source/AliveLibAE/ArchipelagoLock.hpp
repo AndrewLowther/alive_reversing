@@ -127,6 +127,15 @@ inline Reason WhyLocked(
     return Reason::eNone; // a path with no status board (a hub or corridor) is never blocked
 }
 
+// The final rooms: the Brewery Ender (level 10), path 1, cameras 12 and 13 (BMP01C12 and BMP01C13) each hold the BirdPortal that Abe
+// enters to finish the game. The game counts as complete when he passes through one of them.
+constexpr Level kFinalLevel = 10;
+constexpr Level kFinalPath = 1;
+inline bool IsFinalPortalRoom(Level level, Level path, Level camera)
+{
+    return level == kFinalLevel && path == kFinalPath && (camera == 12 || camera == 13);
+}
+
 // Is this ElectricWall one that an opened group switches off? (Independent of 'enforce': a fence is opened by the line alone.)
 inline bool IsFenceOpen(const UnlockState& state, const FenceEntry* table, std::size_t tableSize, Level level, Level path, int x, int y)
 {

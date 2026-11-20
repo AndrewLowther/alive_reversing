@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "Archipelago.hpp"
 #include "BirdPortal.hpp"
 #include "ResourceManager.hpp"
 #include "Map.hpp"
@@ -905,6 +906,12 @@ void BirdPortal::vGiveShryukull_499680(s16 bPlaySound)
         else
         {
             field_28_state = PortalStates::CollapseTerminators_10;
+#if ARCHIPELAGO_CLIENT
+            if (field_24_portal_type == PortalType::eAbe_0)
+            {
+                Archipelago::OnAbeEnteredPortal(field_8C_level, field_8E_path, gMap_5C3030.field_4_current_camera);
+            }
+#endif
             if ((field_24_portal_type == PortalType::eWorker_1 || field_24_portal_type == PortalType::eShrykull_2) && sActiveHero_5C1B68->field_106_current_motion == eAbeMotions::Motion_112_Chant_45B1C0)
             {
                 sActiveHero_5C1B68->ChangeChantState_45BB90(0);

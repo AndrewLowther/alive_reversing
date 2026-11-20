@@ -309,6 +309,18 @@ LockReason WhyLocked(LevelIds level, s16 path, std::vector<s16>* areas)
 
 } // namespace
 
+void OnAbeEnteredPortal(LevelIds level, s16 path, s16 camera)
+{
+    // Whether the goal's count is met: Mudokon Saved items when they are the goal, otherwise the game's rescues (as at the ending).
+    const bool enough = sGoalItems > 0 ? sSavedMudokons >= sGoalItems : (sGoodEnding > 0 ? sRescuedMudokons_5C1BC2 >= sGoodEnding : true);
+    char_type buffer[192] = {};
+    std::snprintf(
+        buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"%s\",\"level\":%d,\"path\":%d,\"camera\":%d,\"enough\":%s}", static_cast<long long>(NowMs()),
+        Lock::IsFinalPortalRoom(static_cast<Lock::Level>(level), static_cast<Lock::Level>(path), static_cast<Lock::Level>(camera)) ? "final_portal" : "abe_portal",
+        static_cast<s32>(level), path, camera, enough ? "true" : "false");
+    AppendLine(buffer);
+}
+
 bool IsFenceOpen(LevelIds level, s16 path, s32 x, s32 y)
 {
     Refresh();
