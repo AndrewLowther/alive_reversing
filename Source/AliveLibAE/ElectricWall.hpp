@@ -28,6 +28,7 @@ public:
     virtual void VScreenChanged() override;
 
 private:
+    bool IsOpenedByArchipelago() const;
     EXPORT ElectricWall* vdtor_421F70(s32 flags);
     EXPORT void dtor_421FA0();
     EXPORT void vScreenChanged_422530();

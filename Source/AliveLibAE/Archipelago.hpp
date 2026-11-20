@@ -106,12 +106,18 @@ s32 SavedMudokonsShown(s32 rescued);
 //   area_access      also block individual areas (zulags), not just levels
 //   level <id>       the level with this game LevelId is unlocked
 //   zulag <l> <z>    area <z> of level <l> is unlocked
+//   open <group>     a group of electric fences is switched off (see ArchipelagoFences.inc): the Executive Office's two with the
+//                    FeeCo Depot Pass, the three on the way to the Brewery door with the Brewery Pass and the Mudokon count
 //   need <l> <text>  what level <l> still needs (its pass, and/or Mudokons for the final level), shown when its door is tried
 // Levels 1 (Necrum Mines) and 2 (Necrum) are always open. If the file is missing nothing is blocked.
 //
 // Doors and express wells are blocked. Path transitions, level loaders, teleporters and portals are not. Checks are held back
 // by the client regardless, so logic stays sound.
 bool IsDestinationLocked(LevelIds level, s16 path);
+
+// Is this ElectricWall (its level, path and position, as in the TLV) one that an opened group switches off? An ElectricWall that
+// answers yes behaves as if its lever were already pulled: hidden, silent, harmless.
+bool IsFenceOpen(LevelIds level, s16 path, s32 x, s32 y);
 
 // Abe tried a locked way out (a door or a well): logs it, plays the game's "access denied" buzzer and shows what is needed
 // in the corner (rate limited). `kind` is "door" or "well" and names the log event (locked_door, locked_well).

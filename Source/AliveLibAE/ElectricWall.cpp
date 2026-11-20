@@ -10,8 +10,19 @@
 #include "Abe.hpp"
 #include "Electrocute.hpp"
 #include "Function.hpp"
+#include "Archipelago.hpp"
 
 const s16 sElecticWallFrames_55165C[6] = {0, 6, 10, 18, 22, 0};
+
+// Archipelago can switch a wall off whatever its lever says (see Archipelago::IsFenceOpen); false in a normal build.
+bool ElectricWall::IsOpenedByArchipelago() const
+{
+#if ARCHIPELAGO_CLIENT
+    return Archipelago::IsFenceOpen(field_C2_lvl_number, field_C0_path_number, FP_GetExponent(field_B8_xpos), FP_GetExponent(field_BC_ypos));
+#else
+    return false;
+#endif
+}
 
 ElectricWall* ElectricWall::ctor_421DA0(Path_ElectricWall* pTlv, s32 tlvInfo)
 {
@@ -54,7 +65,7 @@ ElectricWall* ElectricWall::ctor_421DA0(Path_ElectricWall* pTlv, s32 tlvInfo)
     field_F8_switch_id = pTlv->field_12_switch_id;
     field_FA_start_state = pTlv->field_14_start_state;
 
-    if (SwitchStates_Get_466020(field_F8_switch_id) == field_FA_start_state)
+    if (SwitchStates_Get_466020(field_F8_switch_id) == field_FA_start_state || IsOpenedByArchipelago())
     {
         field_20_animation.field_4_flags.Clear(AnimFlags::eBit3_Render);
     }
@@ -116,7 +127,7 @@ void ElectricWall::vUpdate_422030()
         field_6_flags.Set(BaseGameObject::eDead_Bit3);
     }
 
-    if (SwitchStates_Get_466020(field_F8_switch_id) == field_FA_start_state)
+    if (SwitchStates_Get_466020(field_F8_switch_id) == field_FA_start_state || IsOpenedByArchipelago())
     {
         field_20_animation.field_4_flags.Clear(AnimFlags::eBit3_Render);
     }
