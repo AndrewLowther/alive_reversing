@@ -53,6 +53,8 @@ void OnLevelChanged(LevelIds from, s16 fromPath, LevelIds to, s16 toPath, s16 ca
 // The client appends one JSON object per line to archipelago_commands.jsonl:
 //   {"seq":12,"cmd":"give_throwables","count":5}   IGNORED (logged as throwables_ignored): giving throwables crashed the game
 //   {"seq":13,"cmd":"alarm"}                       sound the alarm (a trap)
+//   {"seq":0,"t":<ms>,"cmd":"restore_rescued","count":2}  put the game's rescued count back up by 2 (Mudokons it lost to a reload or
+//                                                  a death); answers with a `rescued_restored` event. Ephemeral.
 //   {"seq":14,"cmd":"fart"}                        make Abe fart (a trap): sound, noise Sligs hear, smoke
 //   {"seq":0,"t":<ms>,"cmd":"teleport","level":2,"path":5,"camera":9}  TESTING ONLY: jump to a camera, like the debug
 //                                                  teleport menu does (game LevelId, path, camera)

@@ -716,6 +716,16 @@ bool Execute(const Command& cmd)
         std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"alarm\",\"instances_before\":%d,\"died_at_once\":%s}", static_cast<long long>(NowMs()), instancesBefore, diedAtOnce ? "true" : "false");
         AppendLine(buffer);
     }
+    else if (cmd.mName == "restore_rescued")
+    {
+        // /rescue_lost: the game's count lost Mudokons to a reload or a death; put it back up by `count` (never past what the game can hold).
+        const s32 add = std::max<s32>(0, std::min<s32>(cmd.mCount, 255 - sRescuedMudokons_5C1BC2));
+        sRescuedMudokons_5C1BC2 = static_cast<s16>(sRescuedMudokons_5C1BC2 + add);
+        char_type buffer[128] = {};
+        std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"rescued_restored\",\"count\":%d,\"total_rescued\":%d}", static_cast<long long>(NowMs()), add, sRescuedMudokons_5C1BC2);
+        AppendLine(buffer);
+        AddMessage("Rescued count restored");
+    }
     else if (cmd.mName == "fart")
     {
         if (!AbeIsDead())
