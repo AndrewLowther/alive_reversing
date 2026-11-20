@@ -51,8 +51,7 @@ void OnLevelChanged(LevelIds from, s16 fromPath, LevelIds to, s16 toPath, s16 ca
 // Commands from the client, and game events the client needs.
 //
 // The client appends one JSON object per line to archipelago_commands.jsonl:
-//   {"seq":12,"cmd":"give_throwables","count":5}   add throwables of the level's own kind
-//   (give_throwables waits, without holding up the other commands, until Abe is on a path whose level has throwables)
+//   {"seq":12,"cmd":"give_throwables","count":5}   IGNORED (logged as throwables_ignored): giving throwables crashed the game
 //   {"seq":13,"cmd":"alarm"}                       sound the alarm (a trap)
 //   {"seq":14,"cmd":"fart"}                        make Abe fart (a trap): sound, noise Sligs hear, smoke
 //   {"seq":0,"t":<ms>,"cmd":"teleport","level":2,"path":5,"camera":9}  TESTING ONLY: jump to a camera, like the debug
@@ -114,6 +113,9 @@ s32 SavedMudokonsShown(s32 rescued);
 // Doors and express wells are blocked. Path transitions, level loaders, teleporters and portals are not. Checks are held back
 // by the client regardless, so logic stays sound.
 bool IsDestinationLocked(LevelIds level, s16 path);
+
+// A save was loaded holding throwables: they are not restored (logs throwables_dropped, `on` = "load").
+void OnThrowablesDroppedOnLoad(s32 count);
 
 // Abe has gone into a BirdPortal that takes him out of the level (not a Mudokon rescue portal). Logs `abe_portal`, or `final_portal` when it
 // is one of the two in the final rooms (Brewery Ender path 1, cameras 12 and 13), with whether the goal's count is met (`enough`).

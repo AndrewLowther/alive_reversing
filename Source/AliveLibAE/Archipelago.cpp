@@ -309,6 +309,13 @@ LockReason WhyLocked(LevelIds level, s16 path, std::vector<s16>* areas)
 
 } // namespace
 
+void OnThrowablesDroppedOnLoad(s32 count)
+{
+    char_type buffer[96] = {};
+    std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"throwables_dropped\",\"count\":%d,\"on\":\"load\"}", static_cast<long long>(NowMs()), count);
+    AppendLine(buffer);
+}
+
 void OnAbeEnteredPortal(LevelIds level, s16 path, s16 camera)
 {
     // Whether the goal's count is met: Mudokon Saved items when they are the goal, otherwise the game's rescues (as at the ending).
@@ -585,51 +592,6 @@ void DropUnusableThrowables()
     AddMessage("Nothing can be thrown here: throwables removed");
 }
 
-void GiveThrowables(s32 count)
-{
-    // The game decides the kind of throwable by level, so this is "more of what this level uses".
-    // Same sequence the pickups use: make the array if it does not exist, add to it, and count them on Abe.
-    if (!gpThrowableArray_5D1E2C)
-    {
-        gpThrowableArray_5D1E2C = ae_new<ThrowableArray>();
-        gpThrowableArray_5D1E2C->ctor_49A630();
-    }
-    const s32 room = 99 - static_cast<s32>(sActiveHero_5C1B68->field_1A2_throwable_count);
-    const s32 amount = std::min(count, std::max(room, 0));
-    if (amount > 0)
-    {
-        gpThrowableArray_5D1E2C->Add_49A7A0(static_cast<s16>(amount));
-        sActiveHero_5C1B68->field_1A2_throwable_count = static_cast<s8>(sActiveHero_5C1B68->field_1A2_throwable_count + amount);
-    }
-}
-
-// The Fart Trap: Abe lets one go. The same sound, game speak event, noise for Sligs to hear and puff of smoke as the
-// player's own fart (Abe::Motion_0_Idle), without needing a button press. Only a standing Abe also does the fart animation,
-// because forcing that motion on a running or jumping Abe would break his state.
-void Fart()
-{
-    Abe* pAbe = sActiveHero_5C1B68;
-    Mudokon_SFX_457EC0(MudSounds::eFart_7, 0, 0, pAbe);
-    pEventSystem_5BC11C->PushEvent_4218D0(GameSpeakEvents::eFart_3);
-    Event_Broadcast_422BC0(kEventNoise, pAbe);
-    Event_Broadcast_422BC0(kEventSuspiciousNoise, pAbe);
-
-    const FP scale = FP_FromDouble(0.5) * pAbe->field_CC_sprite_scale;
-    const FP y = pAbe->field_BC_ypos - (FP_FromInteger(24) * pAbe->field_CC_sprite_scale);
-    const FP offset = FP_FromInteger(12) * pAbe->field_CC_sprite_scale;
-    const FP x = pAbe->field_20_animation.field_4_flags.Get(AnimFlags::eBit5_FlipX) ? pAbe->field_B8_xpos + offset : pAbe->field_B8_xpos - offset;
-    New_Smoke_Particles_426C70(x, y, scale, 3, 32u, 128u, 32u);
-
-    const bool idle = pAbe->field_106_current_motion == eAbeMotions::Motion_0_Idle_44EEB0;
-    if (idle)
-    {
-        pAbe->field_106_current_motion = eAbeMotions::Motion_10_Fart_45B1A0;
-    }
-    char_type buffer[96] = {};
-    std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"fart\",\"idle\":%s}", static_cast<long long>(NowMs()), idle ? "true" : "false");
-    AppendLine(buffer);
-}
-
 // TESTING ONLY. Copies what the game's debug teleport menu does: point the map at a camera, then on a later frame, once it
 // has loaded, put Abe in it. Lets a locked well or door far into the game be tried in seconds.
 struct Teleport final
@@ -702,11 +664,11 @@ bool Execute(const Command& cmd)
     }
     if (cmd.mName == "give_throwables")
     {
-        if (!ThrowablesUsableHere())
-        {
-            return false; // waits (the other commands go on) until Abe is on a path whose level has throwables
-        }
-        GiveThrowables(cmd.mCount);
+        // Ignored. Throwables given by the client crashed the game wherever a level has none (a save made with them could not even be
+        // loaded), so the Throwables items do nothing. Old command files may still hold this command: it is acknowledged and dropped.
+        char_type buffer[96] = {};
+        std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"throwables_ignored\",\"count\":%d}", static_cast<long long>(NowMs()), cmd.mCount);
+        AppendLine(buffer);
     }
     else if (cmd.mName == "alarm")
     {
