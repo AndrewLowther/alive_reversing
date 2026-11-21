@@ -21,6 +21,10 @@
 #include "PathData.hpp"
 #include "LvlArchive.hpp"
 #include "Sfx.hpp"
+#include "ResourceManager.hpp"
+#include "Slog.hpp"
+#include "Slig.hpp"
+#include "Scrab.hpp"
 #include "Throwable.hpp"
 #include "ThrowableArray.hpp"
 #include "stdlib.hpp"
@@ -614,6 +618,157 @@ void Fart()
     AppendLine(buffer);
 }
 
+
+// ---- Spawn traps. A spawned enemy needs its animation resources, which the game only loads in a level that has that enemy; the
+// constructors read them without checking, so the traps only spawn when they are loaded (the same check CrawlingSlig makes) and
+// otherwise fall back to an alarm. Enemies appear a screen-ish ahead of Abe, facing him.
+bool SpawnResourceLoaded(AEResourceID id)
+{
+    return ResourceManager::GetLoadedResource_49C2A0(ResourceManager::Resource_Animation, id, 0, 0) != nullptr;
+}
+
+void LogTrap(const char_type* what, bool spawned)
+{
+    char_type buffer[160] = {};
+    std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"trap\",\"what\":\"%s\",\"spawned\":%s}", static_cast<long long>(NowMs()), what, spawned ? "true" : "false");
+    AppendLine(buffer);
+}
+
+void RaiseAlarm();
+
+// Which side of Abe the enemy appears on: the side he is facing, so it comes at him; 280 pixels away.
+FP SpawnX()
+{
+    Abe* pAbe = sActiveHero_5C1B68;
+    const bool facingLeft = pAbe->field_20_animation.field_4_flags.Get(AnimFlags::eBit5_FlipX);
+    return pAbe->field_B8_xpos + FP_FromInteger(facingLeft ? -280 : 280);
+}
+
+void SpawnSlig()
+{
+    Abe* pAbe = sActiveHero_5C1B68;
+    if (!SpawnResourceLoaded(AEResourceID::kSlgbasicResID))
+    {
+        LogTrap("slig", false);
+        RaiseAlarm();
+        return;
+    }
+    Path_Slig tlv = {};
+    tlv.field_2_length = sizeof(Path_Slig);
+    tlv.field_4_type.mType = TlvTypes::Slig_15;
+    const s16 x = static_cast<s16>(FP_GetExponent(SpawnX()));
+    const s16 y = static_cast<s16>(FP_GetExponent(pAbe->field_BC_ypos));
+    tlv.field_8_top_left = {x, y};
+    tlv.field_C_bottom_right = {static_cast<s16>(x + 25), y};
+    tlv.field_10_scale = pAbe->field_CC_sprite_scale == FP_FromDouble(0.5) ? Scale_short::eHalf_1 : Scale_short::eFull_0;
+    tlv.field_12_start_state = Path_Slig::StartState::Chase_3;
+    tlv.field_14_pause_time = 5;
+    tlv.field_16_pause_left_min = 10;
+    tlv.field_18_pause_left_max = 20;
+    tlv.field_1A_pause_right_min = 10;
+    tlv.field_1C_pause_right_max = 20;
+    tlv.field_1E_shoot_possessed_sligs = Path_Slig::ShootPossessedSligs::eNo_3;
+    tlv.field_20_shoot_on_sight_delay = 5;
+    tlv.field_22_num_times_to_shoot = 2;
+    tlv.field_2A_chase_abe_when_spotted = Choice_short::eYes_1;
+    tlv.field_2C_start_direction = x > FP_GetExponent(pAbe->field_B8_xpos) ? XDirection_short::eLeft_0 : XDirection_short::eRight_1;
+    tlv.field_2E_panic_timeout = 30;
+    tlv.field_30_num_panic_sounds = 3;
+    tlv.field_32_panic_sound_timeout = 30;
+    tlv.field_34_stop_chase_delay = 300;
+    tlv.field_36_time_to_wait_before_chase = 5;
+    tlv.field_3A_alerted_listen_time = 10;
+    tlv.field_4A_noise_wake_up_distance = 0;
+    if (auto* pSlig = ae_new<Slig>())
+    {
+        pSlig->ctor_4B1370(&tlv, 0xFFFF);
+    }
+    SFX_Play_46FA90(SoundEffect::SligSpawn_114, 0);
+    LogTrap("slig", true);
+}
+
+void SpawnSlog()
+{
+    Abe* pAbe = sActiveHero_5C1B68;
+    if (!SpawnResourceLoaded(AEResourceID::kDogbasicResID))
+    {
+        LogTrap("slog", false);
+        RaiseAlarm();
+        return;
+    }
+    if (auto* pSlog = ae_new<Slog>())
+    {
+        pSlog->ctor_4C4540(SpawnX(), pAbe->field_BC_ypos, pAbe->field_CC_sprite_scale, 0, 0);
+        pSlog->field_20_animation.field_4_flags.Set(AnimFlags::eBit5_FlipX, SpawnX() > pAbe->field_B8_xpos);
+    }
+    SFX_Play_46FA90(SoundEffect::SlogSpawn_115, 0);
+    LogTrap("slog", true);
+}
+
+void SpawnScrab()
+{
+    Abe* pAbe = sActiveHero_5C1B68;
+    if (!SpawnResourceLoaded(AEResourceID::kArsbasicResID))
+    {
+        LogTrap("scrab", false);
+        RaiseAlarm();
+        return;
+    }
+    Path_Scrab tlv = {};
+    tlv.field_2_length = sizeof(Path_Scrab);
+    tlv.field_4_type.mType = TlvTypes::Scrab_41;
+    const s16 x = static_cast<s16>(FP_GetExponent(SpawnX()));
+    const s16 y = static_cast<s16>(FP_GetExponent(pAbe->field_BC_ypos));
+    tlv.field_8_top_left = {x, y};
+    tlv.field_C_bottom_right = {static_cast<s16>(x + 25), y};
+    tlv.field_10_scale = pAbe->field_CC_sprite_scale == FP_FromDouble(0.5) ? Scale_short::eHalf_1 : Scale_short::eFull_0;
+    tlv.field_12_attack_delay = 1;
+    tlv.field_14_patrol_type_run_or_walk_chance = 5;
+    tlv.field_16_left_min_delay = 10;
+    tlv.field_18_left_max_delay = 20;
+    tlv.field_1A_right_min_delay = 10;
+    tlv.field_1C_right_max_delay = 20;
+    tlv.field_1E_pause_after_chase_delay = 30;
+    tlv.field_22_roar_randomly = Choice_short::eYes_1;
+    tlv.field_24_persistant = Choice_short::eNo_0;
+    tlv.field_26_possessed_max_whirl_attack_duration = 20;
+    if (auto* pScrab = ae_new<Scrab>())
+    {
+        pScrab->ctor_4A3C40(&tlv, 0xFFFF, SpawnX() > pAbe->field_B8_xpos ? ScrabSpawnDirection::eLeft_1 : ScrabSpawnDirection::eRight_2);
+    }
+    SFX_Play_46FA90(SoundEffect::ScrabSpawn_111, 0);
+    LogTrap("scrab", true);
+}
+
+// A bomb goes off 100 pixels in front of Abe: close enough to scare him and blow things up, but he can get away from it.
+void DropBomb()
+{
+    Abe* pAbe = sActiveHero_5C1B68;
+    const bool facingLeft = pAbe->field_20_animation.field_4_flags.Get(AnimFlags::eBit5_FlipX);
+    if (auto* pBomb = ae_new<BaseBomb>())
+    {
+        pBomb->ctor_423E70(pAbe->field_B8_xpos + FP_FromInteger(facingLeft ? -100 : 100), pAbe->field_BC_ypos, 0, pAbe->field_CC_sprite_scale);
+    }
+    LogTrap("bomb", true);
+}
+
+void RaiseAlarm()
+{
+    // The game's Alarm destroys itself if another alarm is already counted as active.
+    const s16 instancesBefore = alarmInstanceCount_5C1BB4;
+    bool diedAtOnce = false;
+    if (auto* pAlarm = ae_new<Alarm>())
+    {
+        // Starts on the next frame and runs for 120 frames (about four seconds): a few pulses and buzzes.
+        pAlarm->ctor_4091F0(120, 0, 0, Layer::eLayer_Above_FG1_39);
+        diedAtOnce = pAlarm->field_6_flags.Get(BaseGameObject::eDead_Bit3);
+    }
+
+    char_type buffer[160] = {};
+    std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"alarm\",\"instances_before\":%d,\"died_at_once\":%s}", static_cast<long long>(NowMs()), instancesBefore, diedAtOnce ? "true" : "false");
+    AppendLine(buffer);
+}
+
 // TESTING ONLY. Copies what the game's debug teleport menu does: point the map at a camera, then on a later frame, once it
 // has loaded, put Abe in it. Lets a locked well or door far into the game be tried in seconds.
 struct Teleport final
@@ -694,19 +849,17 @@ bool Execute(const Command& cmd)
     }
     else if (cmd.mName == "alarm")
     {
-        // The game's Alarm destroys itself if another alarm is already counted as active.
-        const s16 instancesBefore = alarmInstanceCount_5C1BB4;
-        bool diedAtOnce = false;
-        if (auto* pAlarm = ae_new<Alarm>())
+        RaiseAlarm();
+    }
+    else if (cmd.mName == "spawn_slig" || cmd.mName == "spawn_slog" || cmd.mName == "spawn_scrab" || cmd.mName == "drop_bomb")
+    {
+        if (!AbeIsDead())
         {
-            // Starts on the next frame and runs for 120 frames (about four seconds): a few pulses and buzzes.
-            pAlarm->ctor_4091F0(120, 0, 0, Layer::eLayer_Above_FG1_39);
-            diedAtOnce = pAlarm->field_6_flags.Get(BaseGameObject::eDead_Bit3);
+            if (cmd.mName == "spawn_slig") { SpawnSlig(); }
+            else if (cmd.mName == "spawn_slog") { SpawnSlog(); }
+            else if (cmd.mName == "spawn_scrab") { SpawnScrab(); }
+            else { DropBomb(); }
         }
-
-        char_type buffer[160] = {};
-        std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"alarm\",\"instances_before\":%d,\"died_at_once\":%s}", static_cast<long long>(NowMs()), instancesBefore, diedAtOnce ? "true" : "false");
-        AppendLine(buffer);
     }
     else if (cmd.mName == "restore_rescued")
     {
