@@ -402,6 +402,7 @@ struct Command final
     s64 mTime = 0;         // ephemeral commands only: when it was sent, in ms
     std::string mName;
     s32 mCount = 0;
+    bool mIsConfig = false;
     s32 mValue = 0;
     s32 mLevel = 0;
     s32 mPath = 0;
@@ -448,6 +449,13 @@ void SaveAck()
 {
     std::ofstream out(kAckFile, std::ios::trunc);
     out << sLastAck << "\n" << sSeedId << "\n";
+}
+
+void LogCommand(const char_type* event, const Command& cmd, s64 ageMs)
+{
+    char_type buffer[192] = {};
+    std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"%s\",\"cmd\":\"%s\",\"seq\":%d,\"age_ms\":%lld}", static_cast<long long>(NowMs()), event, cmd.mName.c_str(), cmd.mSeq, static_cast<long long>(ageMs));
+    AppendLine(buffer);
 }
 
 void ReadNewCommands()
@@ -503,6 +511,7 @@ void ReadNewCommands()
         cmd.mCamera = static_cast<s32>(Json::Int(object, "camera", 0));
         // A "cfg" line is a standing setting: always applied, and the last one in the file wins.
         const bool isConfig = Json::Int(object, "cfg", 0) != 0;
+        cmd.mIsConfig = isConfig;
         if (!isConfig && cmd.mSeq > 0 && cmd.mSeq <= sLastAck)
         {
             char_type buffer[128] = {};
@@ -512,7 +521,12 @@ void ReadNewCommands()
         }
         if (!isConfig && cmd.mSeq == 0 && NowMs() - cmd.mTime > kEphemeralLifetimeMs)
         {
+            LogCommand("command_expired", cmd, NowMs() - cmd.mTime);
             continue; // too old to matter
+        }
+        if (!isConfig)
+        {
+            LogCommand("command_received", cmd, 0);
         }
         if (cmd.mName == "new_seed")
         {
@@ -854,6 +868,7 @@ void StepTeleport()
         sDDCheat_FlyingEnabled_5C2C08 = false; // the camera never arrived: give up rather than leave Abe flying
         sTeleport.mActive = false;
         AddMessage("Teleport failed");
+        AppendLine("{\"event\":\"teleport_failed\"}");
     }
 }
 
@@ -1029,6 +1044,13 @@ void Tick()
     for (size_t i = 0; i < sPending.size();)
     {
         const Command cmd = sPending[i];
+        if (cmd.mSeq == 0 && !cmd.mIsConfig && NowMs() - cmd.mTime > kEphemeralLifetimeMs)
+        {
+            // Waited too long (Abe was not in a level): a teleport or message from minutes ago must not suddenly happen.
+            LogCommand("command_expired", cmd, NowMs() - cmd.mTime);
+            sPending.erase(sPending.begin() + static_cast<std::ptrdiff_t>(i));
+            continue;
+        }
         if (!Execute(cmd))
         {
             ++i;
