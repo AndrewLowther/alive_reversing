@@ -690,12 +690,13 @@ void LogTrap(const char_type* what, bool spawned)
 
 void RaiseAlarm();
 
-// Which side of Abe the enemy appears on: the side he is facing, so it comes at him; 280 pixels away.
+// Which side of Abe the enemy appears on: the side he is facing, so it comes at him; 170 pixels away, which is on screen (a screen is
+// 368 pixels wide) unless Abe is at its edge.
 FP SpawnX()
 {
     Abe* pAbe = sActiveHero_5C1B68;
     const bool facingLeft = pAbe->field_20_animation.field_4_flags.Get(AnimFlags::eBit5_FlipX);
-    return pAbe->field_B8_xpos + FP_FromInteger(facingLeft ? -280 : 280);
+    return pAbe->field_B8_xpos + FP_FromInteger(facingLeft ? -170 : 170);
 }
 
 void SpawnSlig()
@@ -722,15 +723,15 @@ void SpawnSlig()
     tlv.field_1A_pause_right_min = 10;
     tlv.field_1C_pause_right_max = 20;
     tlv.field_1E_shoot_possessed_sligs = Path_Slig::ShootPossessedSligs::eNo_3;
-    tlv.field_20_shoot_on_sight_delay = 5;
-    tlv.field_22_num_times_to_shoot = 2;
+    tlv.field_20_shoot_on_sight_delay = 60; // about two and a half seconds to react before the first shot
+    tlv.field_22_num_times_to_shoot = 1;
     tlv.field_2A_chase_abe_when_spotted = Choice_short::eYes_1;
     tlv.field_2C_start_direction = x > FP_GetExponent(pAbe->field_B8_xpos) ? XDirection_short::eLeft_0 : XDirection_short::eRight_1;
     tlv.field_2E_panic_timeout = 30;
     tlv.field_30_num_panic_sounds = 3;
     tlv.field_32_panic_sound_timeout = 30;
     tlv.field_34_stop_chase_delay = 300;
-    tlv.field_36_time_to_wait_before_chase = 5;
+    tlv.field_36_time_to_wait_before_chase = 60;
     tlv.field_3A_alerted_listen_time = 10;
     tlv.field_4A_noise_wake_up_distance = 0;
     if (auto* pSlig = ae_new<Slig>())
