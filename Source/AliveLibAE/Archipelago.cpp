@@ -412,6 +412,9 @@ struct Command final
 std::vector<Command> sPending;
 std::streamoff sCommandOffset = 0;
 s32 sLastAck = 0;
+s32 sHighestDone = 0;           // the highest numbered command carried out (the ack is this, held back by any command still waiting)
+std::string sSeedId;            // the seed and slot the ack belongs to (second line of the ack file); a new_seed command with another id resets it
+std::string sCommandHead;       // the first bytes of the command file as last read: a different start means the client replaced the file
 bool sCommandsStarted = false;
 bool sAbeWasDead = false;
 u32 sFramesSincePoll = 0;
@@ -427,6 +430,13 @@ void StartCommands()
     if (in >> ack)
     {
         sLastAck = ack;
+        sHighestDone = ack;
+        in.ignore(); // the end of the first line
+        std::getline(in, sSeedId);
+        while (!sSeedId.empty() && (sSeedId.back() == '\r' || sSeedId.back() == '\n'))
+        {
+            sSeedId.pop_back();
+        }
     }
     // Numbered commands at or below this are skipped as already done, which is easy to forget when testing by hand.
     char_type buffer[96] = {};
@@ -437,7 +447,7 @@ void StartCommands()
 void SaveAck()
 {
     std::ofstream out(kAckFile, std::ios::trunc);
-    out << sLastAck << "\n";
+    out << sLastAck << "\n" << sSeedId << "\n";
 }
 
 void ReadNewCommands()
@@ -448,10 +458,19 @@ void ReadNewCommands()
     {
         return;
     }
-    if (static_cast<std::streamoff>(size) < sCommandOffset)
+    // The client replaces the file for a new seed, and the new one can already be longer than the old offset: compare its start too.
+    std::string head(48, '\0');
+    {
+        std::ifstream peek(kCommandFile, std::ios::binary);
+        peek.read(&head[0], static_cast<std::streamsize>(head.size()));
+        head.resize(static_cast<size_t>(std::max<std::streamsize>(peek.gcount(), 0)));
+    }
+    const size_t comparable = std::min(head.size(), sCommandHead.size());
+    if (static_cast<std::streamoff>(size) < sCommandOffset || head.compare(0, comparable, sCommandHead, 0, comparable) != 0)
     {
         sCommandOffset = 0; // the client rewrote the file
     }
+    sCommandHead = head;
     if (static_cast<std::streamoff>(size) == sCommandOffset)
     {
         return;
@@ -494,6 +513,27 @@ void ReadNewCommands()
         if (!isConfig && cmd.mSeq == 0 && NowMs() - cmd.mTime > kEphemeralLifetimeMs)
         {
             continue; // too old to matter
+        }
+        if (cmd.mName == "new_seed")
+        {
+            // A new playthrough: forget the ack and everything still waiting from the last one, or their numbers would skip the new commands.
+            if (sSeedId.empty())
+            {
+                sSeedId = cmd.mText; // an ack file from before seeds were recorded, or none: this is the first seed, nothing to forget
+                SaveAck();
+            }
+            else if (cmd.mText != sSeedId)
+            {
+                sPending.erase(std::remove_if(sPending.begin(), sPending.end(), [](const Command& c) { return c.mSeq > 0; }), sPending.end());
+                sLastAck = 0;
+                sHighestDone = 0;
+                sSeedId = cmd.mText;
+                SaveAck();
+                char_type buffer[96] = {};
+                std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"new_seed\",\"reset\":true}", static_cast<long long>(NowMs()));
+                AppendLine(buffer);
+            }
+            continue;
         }
         if (cmd.mName == "message")
         {
@@ -986,7 +1026,6 @@ void Tick()
 
     // Carry out waiting commands in order. One that cannot run yet (no Abe in a level, or no throwables on this path) waits while
     // the others go on. The ack never passes a waiting command, so after a restart it is still carried out.
-    static s32 sHighestDone = 0;
     for (size_t i = 0; i < sPending.size();)
     {
         const Command cmd = sPending[i];
