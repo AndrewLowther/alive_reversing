@@ -1120,12 +1120,7 @@ s32 CC Abe::CreateFromSaveState_44D4F0(const u8* pData)
     sActiveHero_5C1B68->field_128.field_12_mood = pSaveState->mood;
     sActiveHero_5C1B68->field_128.field_18_say = pSaveState->say;
     sActiveHero_5C1B68->field_144_auto_say_timer = pSaveState->auto_say_timer;
-#if ARCHIPELAGO_CLIENT
-    // Throwables are dropped when a save is loaded (ThrowableArray::CreateFromSaveState does not make the array either).
-    sActiveHero_5C1B68->field_1A2_throwable_count = 0;
-#else
     sActiveHero_5C1B68->field_1A2_throwable_count = pSaveState->field_6c_rock_bone_count;
-#endif
     sActiveHero_5C1B68->field_168_ring_pulse_timer = pSaveState->ring_pulse_timer;
     sActiveHero_5C1B68->field_16C_bHaveShrykull = pSaveState->bHaveShrykull;
 

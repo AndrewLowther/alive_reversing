@@ -5,7 +5,6 @@
 #include "Map.hpp"
 #include "PathData.hpp"
 #include "Throwable.hpp"
-#include "Archipelago.hpp"
 
 ALIVE_VAR(1, 0x5d1e2c, ThrowableArray*, gpThrowableArray_5D1E2C, nullptr);
 
@@ -281,11 +280,6 @@ void ThrowableArray::Add_49A7A0(s16 count)
 
 s32 CC ThrowableArray::CreateFromSaveState_49B200(const u8* pState)
 {
-#if ARCHIPELAGO_CLIENT
-    // Throwables in a save are dropped on load (Abe's count is cleared too, see Abe::CreateFromSaveState): a save made with them in a level
-    // that has none (Necrum) cannot load their sprites and crashed the game, and nothing in the Archipelago game gives them any more.
-    Archipelago::OnThrowablesDroppedOnLoad(reinterpret_cast<const ThrowableArray_SaveState*>(pState)->field_2_item_count);
-#else
     LoadRockTypes_49AB30(gMap_5C3030.field_0_current_level, gMap_5C3030.field_2_current_path);
     auto pArray = ae_new<ThrowableArray>();
     if (pArray)
@@ -293,7 +287,6 @@ s32 CC ThrowableArray::CreateFromSaveState_49B200(const u8* pState)
         pArray->ctor_49A630();
     }
     pArray->Add_49A7A0(reinterpret_cast<const ThrowableArray_SaveState*>(pState)->field_2_item_count);
-#endif
     return sizeof(ThrowableArray_SaveState);
 }
 

@@ -315,13 +315,6 @@ LockReason WhyLocked(LevelIds level, s16 path, std::vector<s16>* areas)
 
 } // namespace
 
-void OnThrowablesDroppedOnLoad(s32 count)
-{
-    char_type buffer[96] = {};
-    std::snprintf(buffer, sizeof(buffer), "{\"t\":%lld,\"event\":\"throwables_dropped\",\"count\":%d,\"on\":\"load\"}", static_cast<long long>(NowMs()), count);
-    AppendLine(buffer);
-}
-
 void OnAbeEnteredPortal(LevelIds level, s16 path, s16 camera)
 {
     // Whether the goal's count is met: Mudokon Saved items when they are the goal, otherwise the game's rescues (as at the ending).
@@ -524,11 +517,10 @@ bool InGameplay()
 // kind's sprites are in the level's own archive: Necrum has no rock sprites because nothing there is ever thrown. Loading a
 // throwable whose file is missing crashes the game, so a Throwables item must not be given in such a level, and a save made with
 // throwables in one cannot be loaded (Couldn't find PUIROCK.BAN in LVL).
-bool ThrowablesUsableHere(bool duringLoad)
+bool ThrowablesUsableHere()
 {
-    // Looking in the archive while the map is changing cameras could catch it half set up, so then say yes without remembering it
-    // (a save being loaded is the exception: the game itself is about to read the same archive).
-    if (!duringLoad && gMap_5C3030.field_6_state != Map::CamChangeStates::eInactive_0)
+    // Looking in the archive while the map is changing cameras could catch it half set up, so then say yes without remembering it.
+    if (gMap_5C3030.field_6_state != Map::CamChangeStates::eInactive_0)
     {
         return true;
     }

@@ -92,7 +92,7 @@ bool GoodEndingAllowed(bool enoughRescues);
 
 // True if the current path's throwables can be loaded (their sprites are in the level's archive). Necrum has no rock sprites, so
 // throwables there crash the game when a save is loaded, or when one is thrown.
-bool ThrowablesUsableHere(bool duringLoad = false);
+bool ThrowablesUsableHere();
 
 // The "Saved Mudokons" number on the in-game status boards: with Mudokon Saved items it is the number of items received (what
 // the goal counts), otherwise `rescued`, the game's own count.
@@ -115,9 +115,6 @@ s32 SavedMudokonsShown(s32 rescued);
 // Doors and express wells are blocked. Path transitions, level loaders, teleporters and portals are not. Checks are held back
 // by the client regardless, so logic stays sound.
 bool IsDestinationLocked(LevelIds level, s16 path);
-
-// A save was loaded holding throwables: they are not restored (logs throwables_dropped, `on` = "load").
-void OnThrowablesDroppedOnLoad(s32 count);
 
 // Abe has gone into a BirdPortal that takes him out of the level (not a Mudokon rescue portal). Logs `abe_portal`, or `final_portal` when it
 // is one of the two in the final rooms (Brewery Ender path 1, cameras 12 and 13), with whether the goal's count is met (`enough`).
